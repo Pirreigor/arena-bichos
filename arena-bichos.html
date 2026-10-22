@@ -222,6 +222,10 @@ input[type=text] { box-sizing: border-box; font: inherit; font-weight: 600; colo
             <button data-d="0">Fácil</button><button data-d="1" class="on">Normal</button><button data-d="2">Difícil</button>
           </div>
         </div>
+        <div class="row">
+          <span class="label">Tirolesa al Tocino dorado</span>
+          <div class="seg" id="zipSolo"><button data-z="1">Sí</button><button data-z="0">No, solo la torre</button></div>
+        </div>
         <button class="secondary" id="play">Jugar contra bots</button>
       </div>
       <div class="controls">
@@ -251,6 +255,10 @@ input[type=text] { box-sizing: border-box; font: inherit; font-weight: 600; colo
         <span class="label" id="plistLabel">En la sala</span>
         <div class="plist" id="plist"></div>
       </div>
+      <div class="row" id="zipRow">
+        <div class="field"><span class="label">Tirolesa al Tocino dorado</span><span class="note">Quien lo toma gana la partida</span></div>
+        <div class="seg" id="zipLobby"><button data-z="1">Sí</button><button data-z="0">No, solo la torre</button></div>
+      </div>
       <div class="row" id="hostCfg">
         <div class="field"><span class="label">Total de jugadores</span><span class="note">Los lugares libres se llenan con bots</span></div>
         <div class="stepper">
@@ -278,6 +286,7 @@ input[type=text] { box-sizing: border-box; font: inherit; font-weight: 600; colo
     <div class="card" style="text-align:center">
       <span class="label">Fin de la partida</span>
       <h1 id="endTitle"></h1>
+      <p class="lede" id="endWhy" hidden></p>
       <div class="stats">
         <div><b id="stK">0</b><span>Eliminaciones</span></div>
         <div><b id="stD">0</b><span>Muertes</span></div>
@@ -336,6 +345,10 @@ const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const ROUND_T = 150, FAR = 36;
 const EYE = .72, EYE_CR = .45, RAD = .25, STEP = .42, MANTLE = 1.6, GRAV = 14, JUMPV = 4.6, BODY_C = .42, BODY_C_CR = .27, BODY_R = .34;
 const TALL = 1.05, TALL_CR = .75, CLIMB_SPEED = 2.6;
+// Zipline from the tower top (a) across the field to the roof of the west block (b); the golden bacon waits on that roof
+const ZIP = { a: [44.5, 3.5], b: [6.5, 36.5], za: 9.6, zb: 7.9, hang: 1.35, speed: 8, topZ: 8, landZ: 6.5 };
+ZIP.len = Math.hypot(ZIP.b[0] - ZIP.a[0], ZIP.b[1] - ZIP.a[1], ZIP.zb - ZIP.za);
+const TROPHY = [4.5, 38.5, 6.5];
 
 let SP = [], LAD = [], NODES = [], OPEN = [];
 const span = (b, t, m) => ({ b, t, m });
@@ -395,6 +408,9 @@ function layoutMap() {
   lad[20][11] = 5.4;
   // North alley behind the back door
   fill(16, 2, 2, 2, 0, 1.2, "crate"); fill(37, 2, 3, 2, 0, 2.6, "container"); fill(24, 3, 3, 1, 0, 1.0, "container");
+  // The tower in the north-east corner, the tallest point of the map; the zipline starts at its top
+  fill(43, 2, 3, 3, 0, ZIP.topZ, "brick");
+  lad[5][44] = ZIP.topZ;
 
   // Street: tall buildings on both sides, a balcony facing the garage door, trucks and barriers
   fill(1, 30, 9, 17, 0, 6.5, "brick");
@@ -426,7 +442,7 @@ function surfaces(x, y) {
   const c = SP[y][x], out = [];
   const free = z => !c.some(s => s.b < z + TALL && s.t > z + .01);
   if (free(0)) out.push(0);
-  c.forEach(s => { if (s.t < 8 && free(s.t)) out.push(s.t); });
+  c.forEach(s => { if (s.t <= ZIP.topZ + .5 && free(s.t)) out.push(s.t); });
   return out.slice(0, 4);
 }
 const surfZ = n => NODES[n >> 2][n & 3];
@@ -528,11 +544,30 @@ function tryClimb(e) {
   e.vz = 0;
   return true;
 }
+// Grab the zipline when standing on the tower top next to its pole
+function tryZip(e) {
+  if (!G.zip || e.zip || e.climb || e.z < ZIP.topZ - .1 || Math.hypot(e.x - ZIP.a[0], e.y - ZIP.a[1]) > 1.3) return false;
+  e.zip = { d: 0 }; e.onLadder = false; e.scoped = false; e.vz = 0;
+  sfx("zip", e.isPlayer ? .5 : .2);
+  return true;
+}
 function jump(e) {
+  if (e.zip) { e.zip = null; e.vz = 0; return; }   // let go mid-ride
+  if (tryZip(e)) return;
   if (tryClimb(e)) return;
   if (e.onGround && !e.onLadder) { e.vz = JUMPV; e.onGround = false; }
 }
 function physics(e, dt) {
+  if (e.zip) {
+    // Hanging from the cable: slide down it, then drop onto the roof at the far end
+    e.zip.d = Math.min(ZIP.len, e.zip.d + ZIP.speed * dt);
+    const t = e.zip.d / ZIP.len;
+    e.x = ZIP.a[0] + (ZIP.b[0] - ZIP.a[0]) * t; e.y = ZIP.a[1] + (ZIP.b[1] - ZIP.a[1]) * t;
+    e.z = ZIP.za + (ZIP.zb - ZIP.za) * t - ZIP.hang;
+    e.vz = 0; e.onGround = false;
+    if (t >= 1) e.zip = null;
+    return;
+  }
   if (e.climb) {
     const c = e.climb;
     c.t = Math.min(1, c.t + dt / .38);
@@ -673,7 +708,7 @@ function paintSprite(canvas, spr) {
 }
 
 /* Settings */
-let cfg = { name: "Jugador", color: 0, count: 4, diff: 1, team: 0, total: 4 };
+let cfg = { name: "Jugador", color: 0, zip: 1, count: 4, diff: 1, team: 0, total: 4 };
 try { Object.assign(cfg, JSON.parse(localStorage.getItem("arena-bichos") || "{}")); } catch (e) {}
 const saveCfg = () => { try { localStorage.setItem("arena-bichos", JSON.stringify(cfg)); } catch (e) {} };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -688,6 +723,7 @@ function renderStart() {
   [...$("chars").children].forEach((s, i) => s.classList.toggle("on", i === cfg.color));
   [...$("diff").children].forEach((s, i) => s.classList.toggle("on", i === cfg.diff));
   [...$("soloTeam").children].forEach((s, i) => s.classList.toggle("on", i === (cfg.team ? 1 : 0)));
+  [...$("zipSolo").children].forEach(s => s.classList.toggle("on", +s.dataset.z === (cfg.zip ? 1 : 0)));
 }
 function charButtons(box, onPick) {
   CHARS.forEach((c, i) => {
@@ -705,6 +741,8 @@ charButtons($("chars"), i => { cfg.color = i; renderStart(); });
 $("minus").onclick = () => { cfg.count = Math.max(2, cfg.count - 1); renderStart(); };
 $("plus").onclick = () => { cfg.count = Math.min(8, cfg.count + 1); renderStart(); };
 $("diff").onclick = e => { const d = e.target.dataset.d; if (d != null) { cfg.diff = +d; renderStart(); } };
+$("zipSolo").onclick = e => { const z = e.target.dataset.z; if (z != null) { cfg.zip = +z; saveCfg(); renderStart(); } };
+$("zipLobby").onclick = e => { const z = e.target.dataset.z; if (z != null && NET && NET.isHost) { cfg.zip = +z; saveCfg(); renderLobby(); } };
 $("soloTeam").onclick = e => { const t = e.target.dataset.t; if (t != null) { cfg.team = +t; saveCfg(); renderStart(); } };
 $("pname").oninput = e => { cfg.name = e.target.value; };
 
@@ -740,7 +778,7 @@ function sfx(kind, vol = 1, w = 0) {
     } else {
       const o = AC.createOscillator();
       o.type = "square"; o.connect(g);
-      const f = { hit: [900, 1300], buy: [500, 900], hurt: [220, 110], round: [440, 660], jump: [300, 520] }[kind] || [600, 600];
+      const f = { hit: [900, 1300], buy: [500, 900], hurt: [220, 110], round: [440, 660], jump: [300, 520], zip: [760, 320], win: [520, 1040] }[kind] || [600, 600];
       o.frequency.setValueAtTime(f[0], t); o.frequency.linearRampToValueAtTime(f[1], t + .08);
       g.gain.setValueAtTime(.08 * vol, t); g.gain.exponentialRampToValueAtTime(.001, t + .12);
       o.start(t); o.stop(t + .13);
@@ -810,11 +848,18 @@ function hostStartMatch() {
     ents.push(mkEnt({ key: "b" + i + "-" + (NET ? NET.me : "solo"), name: CHARS[ci].n, ci, team: t, own: true, isBot: true }));
   }
   if (!cnt[0] || !cnt[1]) { ents = ents.filter(e => !e.isBot); return false; }
-  setPhase({ st: "freeze", r: 1, rid: Math.floor(Math.random() * 1e6), sc: [0, 0], t: 3, tl: ROUND_T, bl: 15, w: -1, why: "" });
+  setPhase({ st: "freeze", r: 1, rid: Math.floor(Math.random() * 1e6), sc: [0, 0], t: 3, tl: ROUND_T, bl: 15, w: -1, why: "", zip: cfg.zip ? 1 : 0 });
   return true;
 }
 function hostStartRound() {
   setPhase({ st: "freeze", r: G.r + 1, rid: G.rid + 1, t: 3, tl: ROUND_T, bl: 15, w: -1, why: "" });
+}
+// Whoever brings back the golden bacon wins the whole match on the spot
+function hostTrophy(e) {
+  if (G.st !== "live" || !G.zip) return;
+  const sc = G.sc.slice();
+  sc[e.team] = 5;
+  setPhase({ st: "post", t: 4, sc, w: e.team, why: `${e.name} tomó el Tocino dorado` });
 }
 function hostEndRound(w, why) {
   if (G.st !== "live") return;
@@ -866,13 +911,18 @@ function respawnOwned(g) {
     if (!e.alive) { e.w = 0; e.he = 0; e.smoke = 0; }
     const mates = order.filter(k => { const x = byKey(k); return x && x.team === e.team; });
     placeAtSpawn(e, Math.max(0, mates.indexOf(e.key)));
-    e.alive = true; e.hp = 100; e.reload = 0; e.cool = 0; e.kb = null; e.cr = false; e.scoped = false;
+    e.alive = true; e.hp = 100; e.reload = 0; e.cool = 0; e.kb = null; e.cr = false; e.scoped = false; e.zip = null; e.tr = 0; e.runner = false;
     e.path = null; e.tgt = null; e.lastSeen = null; e.aware = null;
     if (e.isBot) {
       for (let i = 3; i > e.w; i--) if (WEAP[i].p <= e.money && Math.random() < .85) { e.money -= WEAP[i].p; e.w = i; break; }
       if (!e.he && e.money >= GEAR[0].p && Math.random() < .6) { e.money -= GEAR[0].p; e.he = 1; }
     }
     e.mag = WEAP[e.w].mag; e.res = WEAP[e.w].res;
+  });
+  // Some rounds a bot of each team makes a run for the golden bacon
+  if (g.zip && amHost()) [0, 1].forEach(t => {
+    const bots = ents.filter(e => e.own && e.isBot && e.team === t);
+    if (bots.length && Math.random() < .35) bots[(Math.random() * bots.length) | 0].runner = true;
   });
 }
 
@@ -1080,6 +1130,17 @@ function botThink(b, dt) {
   b.cr = false; b.scoped = false;
   if (b.tgt) { b.tgt = null; if (b.lastSeen) b.path = bfs(nodeAt(b.x, b.y, b.z), nodeAt(b.lastSeen.x, b.lastSeen.y, b.lastSeen.z)); }
   if (b.mag < WEAP[b.w].mag * .4) startReload(b);
+  if (b.runner && G.zip) {
+    if (b.zip) return;
+    if (Math.abs(b.z - ZIP.landZ) < .5 && Math.hypot(b.x - TROPHY[0], b.y - TROPHY[1]) < 8) {
+      // Landed on the far roof: run straight for the bacon
+      const dx = TROPHY[0] - b.x, dy = TROPHY[1] - b.y, d = Math.hypot(dx, dy) || 1;
+      b.a = Math.atan2(dy, dx); move(b, dx / d * 2.4 * dt, dy / d * 2.4 * dt); b.moving = true;
+      return;
+    }
+    if (b.z >= ZIP.topZ - .1 && Math.hypot(b.x - ZIP.a[0], b.y - ZIP.a[1]) < 1.2) { jump(b); return; }
+    if (!b.path || !b.path.length) { b.path = bfs(nodeAt(b.x, b.y, b.z), nodeAt(ZIP.a[0], ZIP.a[1], ZIP.topZ)); b.ladderIn = 0; }
+  }
   if (!b.path || !b.path.length) {
     b.path = bfs(nodeAt(b.x, b.y, b.z), pickGoal(b));
     b.ladderIn = 0;
@@ -1112,7 +1173,7 @@ function sendPresence() {
   const e = ents.filter(x => x.own).slice(0, 9).map(x => ({
     k: x.key, n: x.name, c: x.ci, t: x.team, x: +x.x.toFixed(2), y: +x.y.toFixed(2), z: +x.z.toFixed(2),
     a: +(((x.a % 6.2832) + 6.2832) % 6.2832).toFixed(2), h: Math.ceil(x.hp), al: x.alive ? 1 : 0,
-    w: x.w, mv: x.moving ? 1 : 0, sh: x.sh, kb: x.kb || "", cr: x.cr ? 1 : 0
+    w: x.w, mv: x.moving ? 1 : 0, sh: x.sh, kb: x.kb || "", cr: x.cr ? 1 : 0, tr: x.tr ? 1 : 0
   }));
   const g = NET.isHost ? Object.assign({}, G, { t: +(+G.t || 0).toFixed(1), tl: +(+G.tl || 0).toFixed(1), bl: +(+G.bl || 0).toFixed(1) }) : null;
   NET.room.presence({ v: 2, hs: NET.isHost, e, s: NET.shots, gr: NET.grs, g }).catch(() => {});
@@ -1124,9 +1185,9 @@ function sanEnt(o) {
   if (!/^[hb][\w.-]+$/.test(k)) return null;
   return {
     k, n: String(o.n || "?").slice(0, 12), c: num(o.c, 0, 7, 0) | 0, t: num(o.t, 0, 1, 0) | 0,
-    x: num(o.x, 1, MS - 1, 2), y: num(o.y, 1, MS - 1, 2), z: num(o.z, 0, 8, 0), a: num(o.a, -10, 10, 0), h: num(o.h, 0, 100, 100),
+    x: num(o.x, 1, MS - 1, 2), y: num(o.y, 1, MS - 1, 2), z: num(o.z, 0, 12, 0), a: num(o.a, -10, 10, 0), h: num(o.h, 0, 100, 100),
     al: o.al ? 1 : 0, w: num(o.w, 0, 3, 0) | 0, mv: o.mv ? 1 : 0, sh: num(o.sh, 0, 1e9, 0), kb: typeof o.kb === "string" ? o.kb.slice(0, 60) : "",
-    cr: o.cr ? 1 : 0
+    cr: o.cr ? 1 : 0, tr: o.tr ? 1 : 0
   };
 }
 function sanNade(o) {
@@ -1142,7 +1203,7 @@ function sanG(g) {
   const n = (v, d) => Number.isFinite(+v) ? +v : d;
   return {
     st: g.st, r: n(g.r, 0) | 0, rid: n(g.rid, 0), sc: Array.isArray(g.sc) ? [n(g.sc[0], 0) | 0, n(g.sc[1], 0) | 0] : [0, 0],
-    t: n(g.t, 0), tl: n(g.tl, 0), bl: n(g.bl, 0), w: g.w === 0 || g.w === 1 ? g.w : -1, why: String(g.why || "").slice(0, 60)
+    t: n(g.t, 0), tl: n(g.tl, 0), bl: n(g.bl, 0), w: g.w === 0 || g.w === 1 ? g.w : -1, why: String(g.why || "").slice(0, 60), zip: g.zip ? 1 : 0
   };
 }
 function processPeers(peers) {
@@ -1175,6 +1236,7 @@ function processPeers(peers) {
       if (!e) { e = mkEnt({ key: d.k, name: d.n, ci: d.c, team: d.t, x: d.x, y: d.y, z: d.z, a: d.a, alive: !!d.al, sh: d.sh, w: d.w, isBot: d.k[0] === "b" }); ents.push(e); }
       if (e.ci !== d.c) { e.ci = d.c; e.hex = COLORS[d.c]; e.spr = getSpr(e.ci); }
       e.cr = !!d.cr;
+      if (d.tr && e.alive && NET.isHost) hostTrophy(e);
       e.name = d.n; e.team = d.t; e.tx = d.x; e.ty = d.y; e.tz = d.z; e.ta = d.a; e.hp = d.h; e.w = d.w; e.moving = !!d.mv; e.owner = p.peer;
       if (e.alive && !d.al) remoteDeath(e, d.kb);
       if (!e.alive && d.al) { e.x = d.x; e.y = d.y; e.z = d.z; e.a = d.a; }
@@ -1367,6 +1429,8 @@ function renderLobby() {
   }
   const host = NET.isHost;
   $("hostCfg").hidden = !host;
+  $("zipRow").hidden = !host;
+  [...$("zipLobby").children].forEach(s => s.classList.toggle("on", +s.dataset.z === (cfg.zip ? 1 : 0)));
   $("startMatch").hidden = !host;
   cfg.total = Math.max(humans.length, Math.min(8, cfg.total));
   $("tot").textContent = cfg.total;
@@ -1527,7 +1591,25 @@ function buildWorld() {
   scene.add(skyMesh);
   scene.add(new THREE.HemisphereLight(0xffe6d0, 0x3a3050, .85));
   const sun = new THREE.DirectionalLight(0xffc89a, .6); sun.position.set(.6, 1, .3); scene.add(sun);
-  return { scene, skyMesh };
+  // Zipline: a cable from the tower top to the roof of the west block, a pole at each end, and the golden bacon on that roof
+  const A = new THREE.Vector3(ZIP.a[0], ZIP.za, ZIP.a[1]), B = new THREE.Vector3(ZIP.b[0], ZIP.zb, ZIP.b[1]);
+  const zipGroup = new THREE.Group();
+  const cable = new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, A.distanceTo(B), 4), new THREE.MeshBasicMaterial({ color: 0x23232b }));
+  cable.position.copy(A).add(B).multiplyScalar(.5);
+  cable.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize());
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0x8a5a2c });
+  const pole = (x, y, z0, z1) => { const m = new THREE.Mesh(new THREE.BoxGeometry(.16, z1 - z0, .16), poleMat); m.position.set(x, (z0 + z1) / 2, y); return m; };
+  zipGroup.add(cable, pole(ZIP.a[0], ZIP.a[1], ZIP.topZ, ZIP.za + .15), pole(ZIP.b[0], ZIP.b[1], ZIP.landZ, ZIP.zb + .15));
+  scene.add(zipGroup);
+  const bc = document.createElement("canvas"); bc.width = bc.height = 16;
+  const bx = bc.getContext("2d"), px = (c, x, y, w = 1, h = 1) => { bx.fillStyle = c; bx.fillRect(x, y, w, h); };
+  for (let i = 0; i < 12; i++) { const y = 4 + Math.round(Math.sin(i * .9) * 1.5); px("#7a4a10", i + 2, y, 1, 7); px("#ffd23f", i + 2, y + 1, 1, 2); px("#e8a020", i + 2, y + 3, 1, 1); px("#fff3b0", i + 2, y + 4, 1, 1); px("#d48a18", i + 2, y + 5, 1, 1); }
+  px("#fffbe0", 4, 5); px("#fffbe0", 9, 3); px("#fffbe0", 12, 6);
+  const btex = new THREE.CanvasTexture(bc); btex.magFilter = btex.minFilter = THREE.NearestFilter; btex.generateMipmaps = false;
+  const trophy = new THREE.Sprite(new THREE.SpriteMaterial({ map: btex, alphaTest: .5, fog: false }));
+  trophy.center.set(.5, 0); trophy.scale.set(1.3, 1.3, 1);
+  scene.add(trophy);
+  return { scene, skyMesh, zipGroup, trophy };
 }
 const spriteTex = {};
 function texFor(ci) {
@@ -1616,6 +1698,10 @@ function render() {
   cam.position.set(v.x, v.z + v.eyeS, v.y);
   cam.lookAt(v.x + Math.cos(v.a) * cp, v.z + v.eyeS + Math.sin(v.pitch || 0), v.y + Math.sin(v.a) * cp);
   R3.world.skyMesh.position.copy(cam.position);
+  const zipOn = inMatch(G.st) ? !!G.zip : !!cfg.zip;
+  R3.world.zipGroup.visible = zipOn;
+  R3.world.trophy.visible = zipOn && G.st !== "post";
+  R3.world.trophy.position.set(TROPHY[0], TROPHY[2] + .15 + Math.sin(now * 2.2) * .08, TROPHY[1]);
   const live = new Set(), scene = R3.world.scene;
   for (const e of ents) {
     let s = R3.sprites.get(e.key);
@@ -1725,7 +1811,9 @@ function drawUI(v) {
       [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => { c.moveTo(CW / 2 + a * 6, CH / 2 + b * 6); c.lineTo(CW / 2 + a * 12, CH / 2 + b * 12); });
       c.stroke();
     }
-    const hint = P.climb ? "" : ladderAt(P.x, P.y) && P.z < ladderAt(P.x, P.y) - .1 ? (TOUCH ? "MUEVE HACIA ADELANTE PARA SUBIR" : "W PARA SUBIR · S PARA BAJAR")
+    const hint = P.zip ? (TOUCH ? "SALTAR PARA SOLTARTE" : "ESPACIO PARA SOLTARTE")
+      : G.zip && P.z >= ZIP.topZ - .1 && Math.hypot(P.x - ZIP.a[0], P.y - ZIP.a[1]) < 1.3 ? (TOUCH ? "SALTAR PARA LA TIROLESA" : "ESPACIO PARA LA TIROLESA")
+      : P.climb ? "" : ladderAt(P.x, P.y) && P.z < ladderAt(P.x, P.y) - .1 ? (TOUCH ? "MUEVE HACIA ADELANTE PARA SUBIR" : "W PARA SUBIR · S PARA BAJAR")
       : P.onGround && climbTarget(P) != null ? (TOUCH ? "SALTAR PARA TREPAR" : "ESPACIO PARA TREPAR") : "";
     if (hint) {
       c.font = "11px Silkscreen, monospace"; c.fillStyle = "rgba(255,255,255,.85)";
@@ -1751,6 +1839,11 @@ function drawMinimap(c, v) {
     c.fillStyle = !low ? "#35304f" : h >= 2.9 ? "#8f88ad" : h >= 2 ? "#c9c2e0" : h >= 1 ? "#6a8a58" : "#8a6038";
     c.fillRect(mx + x * cell, my + y * cell, cell, cell);
     if (LAD[y][x]) { c.fillStyle = "#ffd23f"; c.fillRect(mx + x * cell, my + y * cell, cell, cell); }
+  }
+  if (G.zip) {
+    c.strokeStyle = "rgba(255,210,63,.8)"; c.lineWidth = 1; c.setLineDash([3, 2]); c.beginPath();
+    c.moveTo(mx + ZIP.a[0] * cell, my + ZIP.a[1] * cell); c.lineTo(mx + ZIP.b[0] * cell, my + ZIP.b[1] * cell); c.stroke(); c.setLineDash([]);
+    c.fillStyle = "#ffd23f"; c.fillRect(mx + TROPHY[0] * cell - cell, my + TROPHY[1] * cell - cell, cell * 2, cell * 2);
   }
   c.fillStyle = "rgba(255,210,63,.25)"; c.beginPath();
   c.moveTo(mx + v.x * cell, my + v.y * cell);
@@ -1888,6 +1981,12 @@ function step(dt) {
     }
   }
   if (inMatch(G.st)) stepNades(dt);
+  // The golden bacon: whoever stands on it (only reachable by the zipline) takes it
+  if (G.zip && G.st === "live") for (const e of ents) {
+    if (!e.own || !e.alive || e.zip || e.tr || Math.hypot(e.x - TROPHY[0], e.y - TROPHY[1]) > .9 || Math.abs(e.z - TROPHY[2]) > .4) continue;
+    e.tr = 1; sfx("win", .8);
+    if (amHost()) hostTrophy(e);
+  }
   const live = G.st === "live";
   P.moving = false;
   if (live && inp.throwK) throwNade(P, inp.throwK);
@@ -1912,7 +2011,8 @@ function step(dt) {
     // Ladders: forward climbs, back goes down; backing away is ignored while hanging on one
     P.ladderIn = live && ladderAt(P.x, P.y) ? (f > .2 ? 1 : f < -.2 ? -1 : 0) : 0;
     if (P.onLadder && f < 0) f = 0;
-    P.moving = live && len > .15 && !P.climb;
+    if (P.zip) f = s = 0;
+    P.moving = live && len > .15 && !P.climb && !P.zip;
     if (P.moving) {
       const ca = Math.cos(P.a), sa = Math.sin(P.a), sp = 3.2 * dt * (P.w === 3 ? .85 : 1) * (P.cr ? .45 : 1) * (P.scoped ? .6 : 1);
       move(P, (ca * f - sa * s) * sp, (sa * f + ca * s) * sp);
@@ -1946,6 +2046,9 @@ function showEnd() {
   const sc = G.sc || [0, 0], won = sc[0] > sc[1];
   $("endTitle").textContent = won ? "¡Ganó Marea!" : "Ganó Brasa";
   $("endTitle").style.color = won ? "var(--marea)" : "var(--brasa)";
+  const bacon = /Tocino dorado/.test(G.why || "");
+  $("endWhy").hidden = !bacon;
+  $("endWhy").textContent = bacon ? G.why + " y ganó la partida." : "";
   $("stK").textContent = P.kills; $("stD").textContent = P.deaths; $("stR").textContent = sc[0] + "–" + sc[1];
   const guest = NET && !NET.isHost;
   $("again").hidden = guest;
