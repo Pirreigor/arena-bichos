@@ -47,6 +47,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 
 .btn-hud { pointer-events: auto; position: absolute; background: rgba(20, 18, 36, .66); border: 2px solid rgba(255,255,255,.35); border-radius: 12px; font-family: var(--pix); font-size: 12px; padding: 8px 12px; touch-action: none; }
 #buyBtn { top: calc(env(safe-area-inset-top, 0px) + 84px); left: max(12px, env(safe-area-inset-left, 0px)); }
+#menuBtn { top: calc(env(safe-area-inset-top, 0px) + 128px); left: max(12px, env(safe-area-inset-left, 0px)); }
 #buyBtn[aria-disabled="true"] { opacity: .35; }
 #fireBtn { width: 84px; height: 84px; border-radius: 50%; background: rgba(226, 69, 60, .78); border-color: rgba(255,255,255,.55); font-size: 13px; right: calc(max(12px, env(safe-area-inset-right, 0px)) + 18px); bottom: calc(env(safe-area-inset-bottom, 0px) + 26px); }
 #fireBtn.on { background: rgba(255, 106, 92, .95); }
@@ -154,6 +155,7 @@ input[type=text] { box-sizing: border-box; font: inherit; font-weight: 600; colo
     <div id="feed"></div>
   </div>
   <button class="btn-hud" id="buyBtn" hidden>COMPRAR (B)</button>
+  <button class="btn-hud" id="menuBtn" hidden>MENÚ</button>
   <button class="btn-hud" id="reloadBtn" hidden aria-label="Recargar">R</button>
   <button class="btn-hud" id="jumpBtn" hidden>SALTAR</button>
   <button class="btn-hud" id="crouchBtn" hidden>AGACHAR</button>
@@ -214,7 +216,7 @@ input[type=text] { box-sizing: border-box; font: inherit; font-weight: 600; colo
       </div>
       <div class="controls">
         <div><b>Teléfono</b> (en horizontal)<br>Pulgar izquierdo: mover · Desliza a la derecha: apuntar<br>Botón rojo: disparar · Saltar: salta y trepa bordes<br>Agachar: te cubres y apuntas mejor · Mira: zoom del láser</div>
-        <div><b>Computadora</b><br>WASD: mover · Mouse: apuntar · Clic: disparar<br>Espacio: saltar y trepar · C: agacharse<br>Clic derecho o E: mira del láser · R: recargar · B: comprar</div>
+        <div><b>Computadora</b><br>WASD: mover · Mouse: apuntar · Clic: disparar<br>Espacio: saltar y trepar · C: agacharse<br>Clic derecho o E: mira del láser · R: recargar · B: comprar · M: menú</div>
       </div>
       <p class="note err" id="no3d" hidden>Este navegador no puede mostrar 3D. Prueba con Chrome o Safari actualizados.</p>
     </div>
@@ -250,6 +252,15 @@ input[type=text] { box-sizing: border-box; font: inherit; font-weight: 600; colo
       <p class="note" id="lobbyNote"></p>
       <button class="primary" id="startMatch">EMPEZAR PARTIDA</button>
       <button class="secondary" id="leave">Salir de la sala</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="pause" hidden>
+    <div class="card" style="text-align:center">
+      <h2>Menú</h2>
+      <p class="lede" id="pauseNote"></p>
+      <button class="primary" id="resume">SEGUIR JUGANDO</button>
+      <button class="secondary" id="quit">Salir de la partida</button>
     </div>
   </div>
 
@@ -298,150 +309,218 @@ const DIFF = [
   { react: .28, err: .035, errD: .005, turn: 6 }
 ];
 const WEAP = [
-  { n: "Pistola chispa", s: "pistola", d: "Daño 28 · 12 balas", p: 0, dmg: 28, pel: 1, rate: .28, spread: .02, mm: 2, mag: 12, res: 36, rel: 1.2, range: 22, c: "#ffd23f", a: "#9a7408", len: 18 },
-  { n: "Escopeta burbuja", s: "escopeta", d: "Fuerte de cerca · 8", p: 1200, dmg: 18, pel: 7, rate: .85, spread: .09, mm: 1.2, mag: 8, res: 24, rel: 2, range: 10, c: "#5fd4f4", a: "#22708c", len: 24, wide: 1 },
-  { n: "Rifle de lava", s: "rifle", d: "Daño 30 · ráfaga · 30", p: 2700, dmg: 30, pel: 1, rate: .11, spread: .03, mm: 2.5, mag: 30, res: 90, rel: 2.2, range: 28, c: "#e2453c", a: "#ff9a2e", len: 32 },
-  { n: "Láser francotirador", s: "láser", d: "Daño 110 · con mira · 5", p: 4750, dmg: 110, pel: 1, rate: 1.3, spread: .07, scoped: .002, mm: 9, mag: 5, res: 15, rel: 3, range: 48, c: "#8a5cd6", a: "#c9b6ff", len: 40, scope: 1 }
+  { n: "Pistola chispa", s: "pistola", d: "Daño 28 · 15 balas · 90 extra", p: 0, dmg: 28, pel: 1, rate: .28, spread: .02, mm: 2, mag: 15, res: 90, rel: 1.2, range: 22, c: "#ffd23f", a: "#9a7408", len: 18 },
+  { n: "Escopeta burbuja", s: "escopeta", d: "Fuerte de cerca · 10 · 50 extra", p: 1200, dmg: 18, pel: 7, rate: .85, spread: .09, mm: 1.2, mag: 10, res: 50, rel: 2, range: 10, c: "#5fd4f4", a: "#22708c", len: 24, wide: 1 },
+  { n: "Rifle de lava", s: "rifle", d: "Daño 30 · ráfaga · 40 · 200 extra", p: 2700, dmg: 30, pel: 1, rate: .11, spread: .03, mm: 2.5, mag: 40, res: 200, rel: 2.2, range: 28, c: "#e2453c", a: "#ff9a2e", len: 32 },
+  { n: "Láser francotirador", s: "láser", d: "Daño 110 · con mira · 8 · 40 extra", p: 4750, dmg: 110, pel: 1, rate: 1.3, spread: .07, scoped: .002, mm: 9, mag: 8, res: 40, rel: 3, range: 48, c: "#8a5cd6", a: "#c9b6ff", len: 40, scope: 1 }
 ];
 
-/* Map "Bodega": a warehouse that Brasa defends, facing the street where Marea starts. Each cell is a column with a height.
-   Tall walls block; low walls, crates, trucks and containers can be climbed; P is a catwalk or a roof reached by stairs s→w. */
-const CELL = {
-  ".": [0, null], "1": [3, "stone"], "M": [3.4, "metal"], "3": [3, "pillar"], "2": [1.5, "moss"], "b": [.75, "concrete"],
-  "c": [.75, "crate"], "C": [1.5, "crate"], "T": [1.5, "truck"], "K": [2.25, "container"],
-  "s": [.375, "plat"], "t": [.75, "plat"], "u": [1.125, "plat"], "v": [1.5, "plat"], "w": [1.875, "plat"], "P": [2.25, "plat"]
-};
-const MS = 40, MID = MS / 2;
+/* Map "Asalto": a two-storey warehouse that Brasa holds, a loading dock, two alleys and a long street where Marea starts.
+   Each cell holds a list of solid spans {b, t, m} (bottom, top, material), so floors, roofs and walkways can sit above open space. */
+const MS = 48, MID = MS / 2;
 const SPAWN = [
-  [[3.5, 36.5], [5.5, 36.5], [3.5, 34.5], [5.5, 34.5]],
-  [[23.5, 10.5], [25.5, 10.5], [23.5, 12.5], [25.5, 12.5]]
+  [[40.5, 42.5], [42.5, 42.5], [40.5, 44.5], [42.5, 44.5]],
+  [[16.5, 13.5], [18.5, 14.5], [15.5, 9.5], [17.5, 9.5]]
 ];
-const ROOF = { y: 3.4, x0: 12, y0: 4, x1: 36, y1: 26, hole: [20, 12, 27, 17] };
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-const ROUND_T = 120, FAR = 30;
-const EYE = .72, EYE_CR = .45, RAD = .25, STEP = .42, MANTLE = 1.6, GRAV = 14, JUMPV = 4.6, WALLH = 2.9, BODY_C = .42, BODY_C_CR = .27, BODY_R = .34;
+const ROUND_T = 150, FAR = 36;
+const EYE = .72, EYE_CR = .45, RAD = .25, STEP = .42, MANTLE = 1.6, GRAV = 14, JUMPV = 4.6, BODY_C = .42, BODY_C_CR = .27, BODY_R = .34;
+const TALL = 1.05, TALL_CR = .75, CLIMB_SPEED = 2.6;
 
+let SP = [], LAD = [], NODES = [], OPEN = [];
+const span = (b, t, m) => ({ b, t, m });
 function layoutMap() {
-  const g = Array.from({ length: MS }, () => Array(MS).fill("."));
-  const rect = (x, y, w, h, ch) => { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (g[j] && i >= 0 && i < MS) g[j][i] = ch; };
-  const box = (x, y, w, h, ch) => { rect(x, y, w, 1, ch); rect(x, y + h - 1, w, 1, ch); rect(x, y, 1, h, ch); rect(x + w - 1, y, 1, h, ch); };
-  const stairs = (x, y, dx, dy, w) => [..."wvuts"].forEach((ch, i) => rect(x + dx * i, y + dy * i, dx ? 1 : w, dx ? w : 1, ch));
-  box(0, 0, MS, MS, "1");
-  // Warehouse shell with three ways in: garage door (south), side door (west), back door (north)
-  box(12, 4, 24, 22, "M");
-  rect(19, 25, 6, 1, ".");
-  rect(12, 14, 1, 3, ".");
-  rect(32, 4, 2, 1, ".");
-  // Catwalks along the north and west walls, stairs down at the east end
-  rect(13, 5, 15, 2, "P");
-  rect(13, 7, 2, 5, "P");
-  stairs(28, 5, 1, 0, 2);
-  // Office in the south-east corner
-  box(27, 18, 8, 7, "1");
-  rect(27, 20, 1, 2, ".");
-  rect(30, 21, 2, 1, "c");
-  // Crates and pillars inside
-  rect(17, 9, 2, 2, "C"); rect(19, 9, 1, 2, "c");
-  rect(21, 15, 3, 2, "C"); rect(21, 17, 3, 1, "c");
-  rect(16, 19, 2, 2, "c"); rect(16, 21, 1, 1, "C");
-  rect(29, 10, 3, 3, "C"); rect(28, 11, 1, 1, "c");
-  [[20, 7], [26, 7], [26, 14], [20, 21], [24, 21]].forEach(([x, y]) => rect(x, y, 1, 1, "3"));
-  // Street in front of the garage: trucks, barriers, containers
-  rect(15, 29, 6, 2, "T"); rect(21, 29, 2, 2, "T");
-  rect(27, 32, 2, 5, "T");
-  rect(9, 27, 4, 1, "b"); rect(24, 27, 1, 3, "b"); rect(17, 34, 4, 1, "b");
-  rect(6, 28, 2, 5, "K"); rect(8, 30, 1, 1, "c");
-  rect(31, 29, 2, 3, "K"); rect(31, 32, 1, 1, "c");
-  rect(1, 26, 5, 1, "2"); rect(30, 26, 4, 1, "2");
-  // West alley to the side door
-  rect(4, 8, 2, 4, "K"); rect(6, 10, 1, 1, "c");
-  rect(2, 15, 3, 2, "c"); rect(2, 17, 1, 1, "C");
-  rect(7, 19, 3, 3, "1");
-  rect(9, 4, 2, 2, "c");
-  // North alley to the back door
-  rect(18, 1, 2, 2, "c"); rect(24, 2, 3, 1, "2"); rect(36, 2, 2, 2, "C");
-  // Sniper roof on the east side, stairs down to the street
-  rect(36, 6, 3, 20, "1");
-  rect(36, 26, 3, 5, "P");
-  stairs(36, 31, 0, 1, 3);
-  return g;
+  const g = Array.from({ length: MS }, () => Array.from({ length: MS }, () => []));
+  const lad = Array.from({ length: MS }, () => new Float32Array(MS));
+  const each = (x, y, w, h, f) => { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (j >= 0 && i >= 0 && j < MS && i < MS) f(g[j][i]); };
+  const fill = (x, y, w, h, b, t, m) => each(x, y, w, h, c => { c.length = 0; c.push(span(b, t, m)); });
+  const add = (x, y, w, h, b, t, m) => each(x, y, w, h, c => c.push(span(b, t, m)));
+  const cut = (x, y, w, h, m) => each(x, y, w, h, c => { for (let k = c.length - 1; k >= 0; k--) if (c[k].m === m) c.splice(k, 1); });
+  const stairs = (x, y, dx, dy, w, n, top, m) => { for (let i = 0; i < n; i++) add(x + dx * i, y + dy * i, dx ? 1 : w, dx ? w : 1, 0, +(top * (i + 1) / n).toFixed(3), m); };
+
+  // Tall city blocks all around give the arena its height
+  fill(0, 0, MS, 1, 0, 7, "brick"); fill(0, MS - 1, MS, 1, 0, 7, "brick");
+  fill(0, 0, 1, MS, 0, 7, "brick"); fill(MS - 1, 0, 1, MS, 0, 7, "brick");
+
+  // Warehouse x12..35, y6..25: tall walls and a roof you can walk on
+  fill(12, 6, 24, 1, 0, 5.4, "metal"); fill(12, 25, 24, 1, 0, 5.4, "metal");
+  fill(12, 6, 1, 20, 0, 5.4, "metal"); fill(35, 6, 1, 20, 0, 5.4, "metal");
+  add(13, 7, 22, 18, 5.0, 5.4, "roof");
+  // Doorways: openings with the wall carrying on above them
+  fill(20, 25, 6, 1, 3.2, 5.4, "metal");   // main garage door (south)
+  fill(12, 12, 1, 2, 2.4, 5.4, "metal");   // side door (west alley)
+  fill(29, 6, 2, 1, 2.4, 5.4, "metal");    // back door (north alley)
+  fill(35, 14, 1, 4, 3.2, 5.4, "metal");   // loading door (east dock)
+  // Roof: a hatch to drop inside, and air units to hide behind
+  cut(22, 14, 2, 2, "roof");
+  add(16, 9, 2, 2, 5.4, 6.2, "vent"); add(29, 19, 3, 1, 5.4, 6.0, "vent"); add(26, 11, 1, 3, 5.4, 5.9, "vent");
+
+  // Upper floor: office in the north-west corner, a bridge along the north wall, a catwalk along the east wall
+  add(13, 7, 6, 5, 2.35, 2.625, "plat");
+  add(19, 7, 13, 1, 2.35, 2.625, "plat");
+  add(32, 7, 3, 16, 2.35, 2.625, "plat");
+  stairs(25, 8, 1, 0, 2, 7, 2.625, "plat");
+  // Office walls, a door onto the bridge and two windows over the hall
+  add(18, 7, 1, 5, 2.625, 5.0, "office"); add(13, 11, 5, 1, 2.625, 5.0, "office");
+  cut(18, 7, 1, 1, "office");
+  [14, 16].forEach(x => { cut(x, 11, 1, 1, "office"); add(x, 11, 1, 1, 2.625, 2.95, "office"); add(x, 11, 1, 1, 4.3, 5.0, "office"); });
+
+  // Ground floor: pillars up to the roof, crates (a stack sits under the roof hatch)
+  [[19, 13], [28, 13], [19, 20], [28, 20]].forEach(([x, y]) => add(x, y, 1, 1, 0, 5.0, "pillar"));
+  add(22, 14, 2, 2, 0, 1.5, "crate"); add(24, 15, 1, 1, 0, .75, "crate");
+  add(14, 16, 2, 2, 0, 1.5, "crate"); add(16, 17, 1, 1, 0, .75, "crate");
+  add(30, 16, 2, 3, 0, 1.5, "crate"); add(29, 18, 1, 1, 0, .75, "crate");
+  add(15, 21, 3, 2, 0, .75, "crate"); add(25, 21, 2, 2, 0, 1.5, "crate");
+
+  // Loading dock on the east side with two trailers backed up to it; a ladder up to the roof
+  fill(36, 10, 4, 12, 0, 1.2, "concrete");
+  fill(36, 22, 4, 1, 0, .8, "concrete"); fill(36, 23, 4, 1, 0, .4, "concrete");
+  fill(40, 11, 5, 2, 0, 2.6, "truck"); fill(40, 17, 5, 2, 0, 2.6, "truck");
+  lad[8][36] = 5.4;
+
+  // West alley: stacked containers, a shed, and a ladder up to the roof
+  fill(3, 9, 2, 6, 0, 2.6, "container"); add(3, 9, 2, 3, 2.6, 5.2, "container"); fill(5, 13, 1, 1, 0, 1.2, "crate");
+  fill(2, 19, 4, 4, 0, 2.4, "stone"); fill(6, 21, 1, 1, 0, 1.0, "crate");
+  fill(8, 15, 2, 1, 0, 1.0, "container");
+  lad[20][11] = 5.4;
+  // North alley behind the back door
+  fill(16, 2, 2, 2, 0, 1.2, "crate"); fill(37, 2, 3, 2, 0, 2.6, "container"); fill(24, 3, 3, 1, 0, 1.0, "container");
+
+  // Street: tall buildings on both sides, a balcony facing the garage door, trucks and barriers
+  fill(1, 30, 9, 17, 0, 6.5, "brick");
+  fill(14, 40, 17, 7, 0, 6.5, "stone");
+  add(14, 39, 16, 1, 2.35, 2.625, "plat");
+  stairs(30, 33, 0, 1, 2, 7, 2.625, "plat");
+  fill(40, 26, 7, 8, 0, 6.5, "brick");
+  fill(17, 31, 2, 5, 0, 2.0, "truck"); fill(25, 29, 5, 2, 0, 2.0, "truck");
+  fill(12, 28, 4, 1, 0, .8, "concrete"); fill(33, 30, 1, 4, 0, .8, "concrete");
+  fill(36, 30, 2, 5, 0, 2.6, "container"); fill(38, 32, 1, 1, 0, 1.2, "crate");
+  return { g, lad };
 }
 
-let GRID = [], HM = [], OPEN = [];
 function buildMap() {
-  GRID = layoutMap();
+  const m = layoutMap();
+  SP = m.g; LAD = m.lad;
   SPAWN.flat().forEach(([sx, sy]) => {
-    for (let y = Math.floor(sy) - 1; y <= Math.floor(sy) + 1; y++) for (let x = Math.floor(sx) - 1; x <= Math.floor(sx) + 1; x++)
-      if (x > 0 && y > 0 && x < MS - 1 && y < MS - 1 && GRID[y][x] !== "M") GRID[y][x] = ".";
-  });
-  HM = GRID.map(r => r.map(ch => (CELL[ch] || CELL["1"])[0]));
-  const a = SPAWN[0][0], seen = flood(Math.floor(a[0]), Math.floor(a[1]));
-  OPEN = [];
-  for (let y = 0; y < MS; y++) for (let x = 0; x < MS; x++) if (seen[y * MS + x]) OPEN.push([x, y]);
-}
-const canEdge = (h0, h1) => h1 < WALLH && h1 - h0 <= MANTLE;
-function flood(sx, sy) {
-  const seen = new Uint8Array(MS * MS), q = [sy * MS + sx];
-  seen[q[0]] = 1;
-  for (let h = 0; h < q.length; h++) {
-    const c = q[h], cx = c % MS, cy = (c / MS) | 0;
-    for (const [dx, dy] of DIRS) {
-      const nx = cx + dx, ny = cy + dy;
-      if (nx < 0 || ny < 0 || nx >= MS || ny >= MS || !canEdge(HM[cy][cx], HM[ny][nx])) continue;
-      const n = ny * MS + nx;
-      if (!seen[n]) { seen[n] = 1; q.push(n); }
+    for (let y = Math.floor(sy) - 1; y <= Math.floor(sy) + 1; y++) for (let x = Math.floor(sx) - 1; x <= Math.floor(sx) + 1; x++) {
+      const c = SP[y] && SP[y][x];
+      if (c) for (let k = c.length - 1; k >= 0; k--) if (c[k].b < .1 && c[k].t <= 2) c.splice(k, 1);
     }
-  }
-  return seen;
+  });
+  SP.forEach(r => r.forEach(c => c.sort((a, b) => a.b - b.b)));
+  buildNodes();
 }
-function bfs(sx, sy, tx, ty) {
-  const start = sy * MS + sx, goal = ty * MS + tx;
-  if (!HM[ty] || HM[ty][tx] >= WALLH || !HM[sy]) return null;
-  const prev = new Int16Array(MS * MS).fill(-1), q = [start];
-  prev[start] = start;
+
+/* Bot navigation: a node is one standable surface of one cell (up to 4 per cell). */
+function surfaces(x, y) {
+  const c = SP[y][x], out = [];
+  const free = z => !c.some(s => s.b < z + TALL && s.t > z + .01);
+  if (free(0)) out.push(0);
+  c.forEach(s => { if (s.t < 8 && free(s.t)) out.push(s.t); });
+  return out.slice(0, 4);
+}
+const surfZ = n => NODES[n >> 2][n & 3];
+const nodeXY = n => [(n >> 2) % MS, ((n >> 2) / MS) | 0];
+function nodeAt(x, y, z) {
+  const ci = Math.floor(y) * MS + Math.floor(x), s = NODES[ci] || [];
+  let best = -1, bd = 1e9;
+  s.forEach((h, k) => { const d = h <= z + .3 ? z - h : (h - z) * 3; if (d < bd) { bd = d; best = k; } });
+  return best < 0 ? -1 : ci * 4 + best;
+}
+function edges(n) {
+  const [x, y] = nodeXY(n), z = surfZ(n), out = [], here = SP[y][x];
+  for (const [dx, dy] of DIRS) {
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= MS || ny >= MS) continue;
+    const there = SP[ny][nx], nci = ny * MS + nx;
+    NODES[nci].forEach((z2, k) => {
+      if (z2 - z > MANTLE) return;
+      const hi = Math.max(z, z2);
+      // the way across must be clear from each surface up to head height above the higher one
+      if (here.some(s => s.b < hi + TALL && s.t > z + .01)) return;
+      if (there.some(s => s.b < hi + TALL && s.t > z2 + .01)) return;
+      out.push(nci * 4 + k);
+    });
+    // a ladder next door: from its top step onto the ladder and go down to its ground
+    const lt = LAD[ny][nx];
+    if (lt && Math.abs(z - lt) < .3) { const k = NODES[nci].indexOf(0); if (k >= 0) out.push(nci * 4 + k); }
+  }
+  const lt = LAD[y][x];
+  if (lt && z === 0) for (const [dx, dy] of DIRS) {
+    const nci = (y + dy) * MS + x + dx;
+    (NODES[nci] || []).forEach((z2, k) => { if (Math.abs(z2 - lt) < .3) out.push(nci * 4 + k); });
+  }
+  return out;
+}
+function buildNodes() {
+  NODES = [];
+  for (let y = 0; y < MS; y++) for (let x = 0; x < MS; x++) NODES.push(surfaces(x, y));
+  const a = SPAWN[0][0], start = nodeAt(a[0], a[1], 0);
+  const seen = new Uint8Array(MS * MS * 4), q = [start];
+  seen[start] = 1;
+  for (let h = 0; h < q.length; h++) for (const n of edges(q[h])) if (!seen[n]) { seen[n] = 1; q.push(n); }
+  OPEN = q.filter(n => surfZ(n) < 6.4);
+}
+function bfs(from, to) {
+  if (from < 0 || to < 0) return null;
+  const prev = new Int32Array(MS * MS * 4).fill(-1), q = [from];
+  prev[from] = from;
   for (let h = 0; h < q.length; h++) {
     const c = q[h];
-    if (c === goal) break;
-    const cx = c % MS, cy = (c / MS) | 0;
-    for (const [dx, dy] of DIRS) {
-      const nx = cx + dx, ny = cy + dy;
-      if (!HM[ny] || HM[ny][nx] == null || !canEdge(HM[cy][cx], HM[ny][nx])) continue;
-      const n = ny * MS + nx;
-      if (prev[n] !== -1) continue;
-      prev[n] = c; q.push(n);
-    }
+    if (c === to) break;
+    for (const n of edges(c)) if (prev[n] === -1) { prev[n] = c; q.push(n); }
   }
-  if (prev[goal] === -1) return null;
+  if (prev[to] === -1) return null;
   const path = [];
-  for (let c = goal; c !== start; c = prev[c]) path.push([c % MS, (c / MS) | 0]);
+  for (let c = to; c !== from; c = prev[c]) path.push(c);
   return path.reverse();
 }
 
-/* Physics on the height grid. Map space: x, y horizontal (cells), z up. */
-const hAt = (x, y) => { const r = HM[Math.floor(y)]; const v = r && r[Math.floor(x)]; return v == null ? 9 : v; };
-const footH = (x, y) => Math.max(hAt(x - RAD, y - RAD), hAt(x + RAD, y - RAD), hAt(x - RAD, y + RAD), hAt(x + RAD, y + RAD));
+/* Physics on the span grid. Map space: x, y horizontal (cells), z up. */
+const OUTSIDE = [span(0, 99, "stone")];
+const spansAt = (x, y) => { const r = SP[Math.floor(y)]; return (r && r[Math.floor(x)]) || OUTSIDE; };
+const ladderAt = (x, y) => { const r = LAD[Math.floor(y)]; return (r && r[Math.floor(x)]) || 0; };
+const solidAt = (x, y, z) => spansAt(x, y).some(s => s.b <= z && z < s.t);
+const CORNERS = [[-RAD, -RAD], [RAD, -RAD], [-RAD, RAD], [RAD, RAD]];
+const tallOf = e => e.cr ? TALL_CR : TALL;
+function floorIn(c, z) { let f = 0; for (const s of c) if (s.t <= z + STEP + 1e-6 && s.t > f) f = s.t; return f; }
+function groundAt(x, y, z) { let g = 0; for (const [a, b] of CORNERS) g = Math.max(g, floorIn(spansAt(x + a, y + b), z)); return g; }
+function blockedAt(x, y, z, tall) { return CORNERS.some(([a, b]) => spansAt(x + a, y + b).some(s => s.b < z + tall && s.t > z + STEP)); }
+function ceilAt(x, y, z) { let c = 99; for (const [a, b] of CORNERS) for (const s of spansAt(x + a, y + b)) if (s.b >= z + STEP * .5 && s.b < c) c = s.b; return c; }
 function move(e, dx, dy) {
   let blocked = false;
-  if (footH(e.x + dx, e.y) <= e.z + STEP) e.x += dx; else blocked = true;
-  if (footH(e.x, e.y + dy) <= e.z + STEP) e.y += dy; else blocked = true;
-  const g = footH(e.x, e.y);
+  const t = tallOf(e);
+  if (!blockedAt(e.x + dx, e.y, e.z, t)) e.x += dx; else blocked = true;
+  if (!blockedAt(e.x, e.y + dy, e.z, t)) e.y += dy; else blocked = true;
+  const g = groundAt(e.x, e.y, e.z);
   if (g > e.z) { e.z = g; e.vz = Math.max(0, e.vz); }
   return blocked;
 }
+// The ledge in front that can be pulled up onto, if any
+function climbTarget(e) {
+  const ca = Math.cos(e.a), sa = Math.sin(e.a), c = spansAt(e.x + ca * .55, e.y + sa * .55);
+  let best = null;
+  for (const s of c) {
+    if (s.t <= e.z + STEP || s.t - e.z > MANTLE) continue;
+    if (c.some(o => o.b < s.t + TALL && o.t > s.t + .01)) continue;
+    if (best == null || s.t < best) best = s.t;
+  }
+  if (best == null || ceilAt(e.x, e.y, e.z) < best + TALL) return null;
+  return best;
+}
 function tryClimb(e) {
   if (e.climb) return true;
-  const ca = Math.cos(e.a), sa = Math.sin(e.a);
-  const ax = e.x + ca * .55, ay = e.y + sa * .55, h = hAt(ax, ay);
-  if (!(h > e.z + STEP && h - e.z <= MANTLE && h < WALLH)) return false;
-  const x1 = e.x + ca * .7, y1 = e.y + sa * .7;
-  if (footH(x1, y1) > h + .01) return false;
+  const h = climbTarget(e);
+  if (h == null) return false;
+  const ca = Math.cos(e.a), sa = Math.sin(e.a), x1 = e.x + ca * .7, y1 = e.y + sa * .7;
+  if (blockedAt(x1, y1, h, TALL)) return false;
   e.climb = { t: 0, z0: e.z, z1: h, x0: e.x, y0: e.y, x1, y1 };
   e.vz = 0;
   return true;
 }
 function jump(e) {
   if (tryClimb(e)) return;
-  if (e.onGround) { e.vz = JUMPV; e.onGround = false; }
+  if (e.onGround && !e.onLadder) { e.vz = JUMPV; e.onGround = false; }
 }
 function physics(e, dt) {
   if (e.climb) {
@@ -449,26 +528,31 @@ function physics(e, dt) {
     c.t = Math.min(1, c.t + dt / .38);
     e.z = c.z0 + (c.z1 - c.z0) * Math.min(1, c.t / .7);
     if (c.t > .6) { const k = (c.t - .6) / .4; e.x = c.x0 + (c.x1 - c.x0) * k; e.y = c.y0 + (c.y1 - c.y0) * k; }
-    if (c.t >= 1) { e.climb = null; e.z = Math.max(c.z1, footH(e.x, e.y)); e.vz = 0; }
+    if (c.t >= 1) { e.climb = null; e.z = Math.max(c.z1, groundAt(e.x, e.y, c.z1)); e.vz = 0; }
     e.onGround = false;
     return;
   }
-  const g = footH(e.x, e.y);
+  const g = groundAt(e.x, e.y, e.z), lt = ladderAt(e.x, e.y);
+  // On a ladder: no gravity, climb with the ladder input
+  if (lt && e.z < lt + .05 && (e.ladderIn || e.z > g + .05)) {
+    e.z = Math.max(g, Math.min(lt, e.z + (e.ladderIn || 0) * CLIMB_SPEED * dt));
+    e.vz = 0; e.onGround = true; e.onLadder = true;
+    return;
+  }
+  e.onLadder = false;
   if (e.z > g + 1e-3 || e.vz > 0) {
+    const z0 = e.z;
     e.vz -= GRAV * dt;
     e.z += e.vz * dt;
+    const cl = ceilAt(e.x, e.y, z0);
+    if (e.z + tallOf(e) > cl) { e.z = Math.max(g, cl - tallOf(e)); if (e.vz > 0) e.vz = 0; }
     if (e.z <= g) { e.z = g; e.vz = 0; }
   } else { e.z = g; e.vz = 0; }
-  if (underRoof(e.x, e.y) && e.z > ROOF.y - 1) { e.z = Math.max(g, ROOF.y - 1); if (e.vz > 0) e.vz = 0; }
   e.onGround = e.z <= g + 1e-3;
-}
-function underRoof(x, y) {
-  const [hx0, hy0, hx1, hy1] = ROOF.hole;
-  return x >= ROOF.x0 && x < ROOF.x1 && y >= ROOF.y0 && y < ROOF.y1 && !(x >= hx0 && x < hx1 && y >= hy0 && y < hy1);
 }
 function rayFree(ax, ay, az, bx, by, bz) {
   const dx = bx - ax, dy = by - ay, dz = bz - az, n = Math.ceil(Math.hypot(dx, dy, dz) / .1);
-  for (let i = 1; i < n; i++) { const t = i / n; if (hAt(ax + dx * t, ay + dy * t) > az + dz * t) return false; }
+  for (let i = 1; i < n; i++) { const t = i / n; if (solidAt(ax + dx * t, ay + dy * t, az + dz * t)) return false; }
   return true;
 }
 const eyeOf = e => e.cr ? EYE_CR : EYE;
@@ -664,7 +748,7 @@ function mkEnt(o) {
   const e = Object.assign({
     key: "", name: "", ci: 0, team: 0, own: false, isPlayer: false, isBot: false,
     x: 2.5, y: 37.5, z: 0, vz: 0, a: 0, pitch: 0, tx: 2.5, ty: 37.5, tz: 0, ta: 0, onGround: true, climb: null,
-    hp: 100, alive: false, w: 0, mag: 12, res: 36, reload: 0, cool: 0,
+    hp: 100, alive: false, w: 0, mag: 15, res: 90, reload: 0, cool: 0,
     money: 800, kills: 0, deaths: 0, moving: false, path: null, tgt: null, react: 0, strafeT: 0, strafeDir: 1,
     lastSeen: null, aware: null, stuckT: 0, lx: 0, ly: 0, spotted: -9, sh: 0, kb: null, owner: null
   }, o);
@@ -679,7 +763,7 @@ function makePlayer(key) {
 function placeAtSpawn(e, idx) {
   const s = SPAWN[e.team][idx % 4], extra = idx >= 4 ? (e.team ? -1 : 1) : 0;
   e.x = e.tx = s[0] + extra; e.y = e.ty = s[1];
-  e.z = e.tz = footH(e.x, e.y); e.vz = 0; e.climb = null; e.pitch = 0;
+  e.z = e.tz = groundAt(e.x, e.y, 0); e.vz = 0; e.climb = null; e.pitch = 0; e.onLadder = false; e.ladderIn = 0;
   e.a = e.ta = Math.atan2(MID - e.y, MID - e.x);
 }
 
@@ -843,12 +927,12 @@ function showMsg(t, s, dur) {
   msgTimer = dur;
 }
 
-/* Bots (run only on the host): they path over the height grid, jump onto crates and climb low walls */
+/* Bots (run only on the host): they path over every level, jump onto crates, climb ledges and use ladders */
 function pickGoal(b) {
   const enemySpawn = SPAWN[1 - b.team][0];
   for (let i = 0; i < 6; i++) {
-    const c = OPEN[(Math.random() * OPEN.length) | 0];
-    if (Math.random() < .5 || Math.hypot(c[0] - enemySpawn[0], c[1] - enemySpawn[1]) < MS * .55) return c;
+    const n = OPEN[(Math.random() * OPEN.length) | 0], [x, y] = nodeXY(n);
+    if (Math.random() < .5 || Math.hypot(x - enemySpawn[0], y - enemySpawn[1]) < MS * .5) return n;
   }
   return OPEN[(Math.random() * OPEN.length) | 0];
 }
@@ -869,8 +953,8 @@ function botThink(b, dt) {
       b.cr = b.onGround && (b.w >= 2 || td > 8) && Math.random() < .6;
       b.scoped = b.w === 3;
     }
-    b.lastSeen = { x: tgt.x, y: tgt.y };
-    b.path = null;
+    b.lastSeen = { x: tgt.x, y: tgt.y, z: tgt.z };
+    b.path = null; b.ladderIn = 0;
     const want = Math.atan2(tgt.y - b.y, tgt.x - b.x);
     const wantP = Math.atan2(tgt.z + bodyOf(tgt) - (b.z + eyeOf(b)), td);
     b.a = turnTo(b.a, want, D.turn * dt);
@@ -891,24 +975,26 @@ function botThink(b, dt) {
   }
   b.pitch *= .9;
   b.cr = false; b.scoped = false;
-  if (b.tgt) { b.tgt = null; if (b.lastSeen) b.path = bfs(Math.floor(b.x), Math.floor(b.y), Math.floor(b.lastSeen.x), Math.floor(b.lastSeen.y)); }
+  if (b.tgt) { b.tgt = null; if (b.lastSeen) b.path = bfs(nodeAt(b.x, b.y, b.z), nodeAt(b.lastSeen.x, b.lastSeen.y, b.lastSeen.z)); }
   if (b.mag < WEAP[b.w].mag * .4) startReload(b);
   if (!b.path || !b.path.length) {
-    const g = pickGoal(b);
-    b.path = bfs(Math.floor(b.x), Math.floor(b.y), g[0], g[1]);
+    b.path = bfs(nodeAt(b.x, b.y, b.z), pickGoal(b));
+    b.ladderIn = 0;
     if (!b.path) return;
   }
   if (b.climb) return;
-  const [cx, cy] = b.path[0];
+  const n = b.path[0], [cx, cy] = nodeXY(n), nz = surfZ(n);
   const dx = cx + .5 - b.x, dy = cy + .5 - b.y, d = Math.hypot(dx, dy);
-  if (d < .25) { b.path.shift(); return; }
+  if (d < .3 && Math.abs(b.z - nz) < .5) { b.path.shift(); b.ladderIn = 0; return; }
   b.a = turnTo(b.a, Math.atan2(dy, dx), 6 * dt);
-  const nh = HM[cy][cx];
-  if (nh > b.z + STEP && b.onGround && d < 1.05) {
-    if (nh - b.z <= .7) { b.vz = JUMPV; b.onGround = false; } else tryClimb(b);
+  const lt = ladderAt(b.x, b.y);
+  b.ladderIn = 0;
+  if (lt && nz > b.z + MANTLE) b.ladderIn = 1;
+  else if (lt && nz < b.z - STEP && d < .35) b.ladderIn = -1;
+  else if (nz > b.z + STEP && b.onGround && d < 1.05) {
+    if (nz - b.z <= .7) { b.vz = JUMPV; b.onGround = false; } else tryClimb(b);
   }
-  const sp = 2.4 * dt;
-  move(b, dx / d * sp, dy / d * sp);
+  if (d > .05) move(b, dx / d * 2.4 * dt, dy / d * 2.4 * dt);
   b.moving = true;
   b.stuckT += dt;
   if (b.stuckT > 1.2) {
@@ -935,7 +1021,7 @@ function sanEnt(o) {
   if (!/^[hb][\w.-]+$/.test(k)) return null;
   return {
     k, n: String(o.n || "?").slice(0, 12), c: num(o.c, 0, 7, 0) | 0, t: num(o.t, 0, 1, 0) | 0,
-    x: num(o.x, 1, MS - 1, 2), y: num(o.y, 1, MS - 1, 2), z: num(o.z, 0, 4, 0), a: num(o.a, -10, 10, 0), h: num(o.h, 0, 100, 100),
+    x: num(o.x, 1, MS - 1, 2), y: num(o.y, 1, MS - 1, 2), z: num(o.z, 0, 8, 0), a: num(o.a, -10, 10, 0), h: num(o.h, 0, 100, 100),
     al: o.al ? 1 : 0, w: num(o.w, 0, 3, 0) | 0, mv: o.mv ? 1 : 0, sh: num(o.sh, 0, 1e9, 0), kb: typeof o.kb === "string" ? o.kb.slice(0, 60) : "",
     cr: o.cr ? 1 : 0
   };
@@ -1260,6 +1346,8 @@ function makeTextures() {
     metal: pixTex((x, n) => { noise(x, n, [120, 132, 138], .1, 23); for (let i = 0; i < n; i += 4) { x.fillStyle = "#8e9ba2"; x.fillRect(i, 0, 1, n); x.fillStyle = "#5c686e"; x.fillRect(i + 2, 0, 1, n); } x.fillStyle = "rgba(140,80,40,.5)"; x.fillRect(3, 11, 2, 3); x.fillRect(11, 4, 1, 2); }),
     truck: pixTex((x, n) => { noise(x, n, [214, 220, 228], .06, 29); x.fillStyle = "#2f5aa8"; x.fillRect(0, 9, n, 3); x.fillStyle = "#8a96a4"; x.fillRect(0, 0, n, 1); x.fillRect(0, n - 1, n, 1); x.fillRect(7, 0, 1, n); }),
     container: pixTex((x, n) => { noise(x, n, [176, 58, 46], .12, 31); for (let i = 1; i < n; i += 3) { x.fillStyle = "#7e2a22"; x.fillRect(i, 0, 1, n); } x.fillStyle = "#e8e0d0"; x.fillRect(3, 3, 5, 2); }),
+    vent: pixTex((x, n) => { noise(x, n, [150, 156, 162], .08, 41); x.fillStyle = "#5c646a"; for (let i = 2; i < n - 1; i += 3) x.fillRect(2, i, n - 4, 1); x.fillStyle = "#3a4046"; x.fillRect(0, 0, n, 1); x.fillRect(0, n - 1, n, 1); }),
+    ladder: pixTex((x, n) => { x.fillStyle = "#d4a92a"; x.fillRect(2, 0, 2, n); x.fillRect(n - 4, 0, 2, n); x.fillStyle = "#a8861a"; for (let i = 1; i < n; i += 5) x.fillRect(2, i, n - 4, 2); }),
     concrete: pixTex((x, n) => { noise(x, n, [176, 174, 168], .08, 37); x.fillStyle = "#f2c23a"; for (let i = 0; i < n; i += 8) x.fillRect(i, 2, 4, 3); x.fillStyle = "#8a8880"; x.fillRect(0, n - 1, n, 1); })
   };
 }
@@ -1276,23 +1364,20 @@ function buildWorld() {
     pts.forEach(p => b.p.push(...p));
     for (let k = 0; k < 4; k++) b.n.push(...nrm);
     uvs.forEach(u => b.u.push(...u));
-    b.i.push(o, o + 1, o + 2, o, o + 2, o + 3);
+    b.i.push(o, o + 2, o + 1, o, o + 3, o + 2);
   };
-  const H3 = (x, y) => (x < 0 || y < 0 || x >= MS || y >= MS) ? 9 : HM[y][x];
-  for (let y = 0; y < MS; y++) for (let x = 0; x < MS; x++) {
-    const h = HM[y][x];
-    if (h <= 0) continue;
-    const m = (CELL[GRID[y][x]] || CELL["1"])[1];
+  // One box per span; skip side faces that a neighbour's span covers completely
+  const MAT = { roof: "metal", office: "tile" };
+  const covered = (nx, ny, b, t) => nx < 0 || ny < 0 || nx >= MS || ny >= MS || SP[ny][nx].some(s => s.b <= b + 1e-3 && s.t >= t - 1e-3);
+  for (let y = 0; y < MS; y++) for (let x = 0; x < MS; x++) for (const s of SP[y][x]) {
+    const m = MAT[s.m] || s.m, b = s.b, h = s.t;
     quad(m, [[x, h, y], [x + 1, h, y], [x + 1, h, y + 1], [x, h, y + 1]], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]]);
-    const side = (nx, ny, pts, nrm, ua, ub) => {
-      const hn = Math.max(0, H3(nx, ny));
-      if (hn >= h) return;
-      quad(m, pts(hn), nrm, [[ua, hn], [ub, hn], [ub, h], [ua, h]]);
-    };
-    side(x + 1, y, hn => [[x + 1, hn, y], [x + 1, hn, y + 1], [x + 1, h, y + 1], [x + 1, h, y]], [1, 0, 0], 0, 1);
-    side(x - 1, y, hn => [[x, hn, y + 1], [x, hn, y], [x, h, y], [x, h, y + 1]], [-1, 0, 0], 0, 1);
-    side(x, y + 1, hn => [[x + 1, hn, y + 1], [x, hn, y + 1], [x, h, y + 1], [x + 1, h, y + 1]], [0, 0, 1], 0, 1);
-    side(x, y - 1, hn => [[x, hn, y], [x + 1, hn, y], [x + 1, h, y], [x, h, y]], [0, 0, -1], 0, 1);
+    if (b > 0) quad(m, [[x, b, y], [x, b, y + 1], [x + 1, b, y + 1], [x + 1, b, y]], [0, -1, 0], [[0, 0], [0, 1], [1, 1], [1, 0]]);
+    const side = (nx, ny, pts, nrm) => { if (!covered(nx, ny, b, h)) quad(m, pts, nrm, [[0, b], [1, b], [1, h], [0, h]]); };
+    side(x + 1, y, [[x + 1, b, y], [x + 1, b, y + 1], [x + 1, h, y + 1], [x + 1, h, y]], [1, 0, 0]);
+    side(x - 1, y, [[x, b, y + 1], [x, b, y], [x, h, y], [x, h, y + 1]], [-1, 0, 0]);
+    side(x, y + 1, [[x + 1, b, y + 1], [x, b, y + 1], [x, h, y + 1], [x + 1, h, y + 1]], [0, 0, 1]);
+    side(x, y - 1, [[x, b, y], [x + 1, b, y], [x + 1, h, y], [x, h, y]], [0, 0, -1]);
   }
   Object.keys(buckets).forEach(m => {
     const b = buckets[m], g = new THREE.BufferGeometry();
@@ -1306,14 +1391,18 @@ function buildWorld() {
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(MS, MS), mats.floor);
   floor.rotation.x = -Math.PI / 2; floor.position.set(MS / 2, 0, MS / 2);
   scene.add(floor);
-  // Warehouse roof (visual only, nobody can reach it), with a skylight over the middle
-  const [hx0, hy0, hx1, hy1] = ROOF.hole;
-  [[ROOF.x0, ROOF.y0, ROOF.x1, hy0], [ROOF.x0, hy1, ROOF.x1, ROOF.y1], [ROOF.x0, hy0, hx0, hy1], [hx1, hy0, ROOF.x1, hy1]].forEach(([x0, y0, x1, y1]) => {
-    const t = tex.metal.clone(); t.needsUpdate = true; t.repeat.set(x1 - x0, y1 - y0);
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, y1 - y0), new THREE.MeshLambertMaterial({ map: t, side: THREE.DoubleSide }));
-    m.rotation.x = -Math.PI / 2; m.position.set((x0 + x1) / 2, ROOF.y, (y0 + y1) / 2);
-    scene.add(m);
-  });
+  // Ladders: a see-through rail-and-rung plane on the wall face next to each ladder cell
+  for (let y = 0; y < MS; y++) for (let x = 0; x < MS; x++) {
+    const lt = LAD[y][x];
+    if (!lt) continue;
+    const dir = DIRS.find(([dx, dy]) => (SP[y + dy] && SP[y + dy][x + dx] || []).some(s => s.b < .1 && s.t >= lt - .1));
+    if (!dir) continue;
+    const t = tex.ladder.clone(); t.needsUpdate = true; t.repeat.set(1, lt * 1.5);
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(.8, lt), new THREE.MeshLambertMaterial({ map: t, transparent: true, alphaTest: .5, side: THREE.DoubleSide }));
+    mesh.position.set(x + .5 + dir[0] * .47, lt / 2, y + .5 + dir[1] * .47);
+    mesh.rotation.y = dir[0] ? Math.PI / 2 : 0;
+    scene.add(mesh);
+  }
   const sky = new THREE.SphereGeometry(80, 16, 12), cols = [], pos = sky.attributes.position;
   const top = new THREE.Color(0x2c2160), hor = new THREE.Color(0xe08a5a);
   for (let i = 0; i < pos.count; i++) { const t = Math.max(0, Math.min(1, pos.getY(i) / 50)); const c = hor.clone().lerp(top, Math.pow(t, .6)); cols.push(c.r, c.g, c.b); }
@@ -1475,12 +1564,11 @@ function drawUI(v) {
       [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => { c.moveTo(CW / 2 + a * 6, CH / 2 + b * 6); c.lineTo(CW / 2 + a * 12, CH / 2 + b * 12); });
       c.stroke();
     }
-    if (P.onGround && !P.climb) {
-      const ah = hAt(P.x + Math.cos(P.a) * .55, P.y + Math.sin(P.a) * .55);
-      if (ah > P.z + STEP && ah - P.z <= MANTLE && ah < WALLH) {
-        c.font = "11px Silkscreen, monospace"; c.fillStyle = "rgba(255,255,255,.85)";
-        c.fillText(TOUCH ? "SALTAR PARA TREPAR" : "ESPACIO PARA TREPAR", CW / 2, CH / 2 + 46);
-      }
+    const hint = P.climb ? "" : ladderAt(P.x, P.y) && P.z < ladderAt(P.x, P.y) - .1 ? (TOUCH ? "MUEVE HACIA ADELANTE PARA SUBIR" : "W PARA SUBIR · S PARA BAJAR")
+      : P.onGround && climbTarget(P) != null ? (TOUCH ? "SALTAR PARA TREPAR" : "ESPACIO PARA TREPAR") : "";
+    if (hint) {
+      c.font = "11px Silkscreen, monospace"; c.fillStyle = "rgba(255,255,255,.85)";
+      c.fillText(hint, CW / 2, CH / 2 + 46);
     }
   }
   if (!(P.scoped && v === P)) drawMinimap(c, v);
@@ -1491,14 +1579,17 @@ function drawUI(v) {
   }
 }
 function drawMinimap(c, v) {
-  const cell = Math.max(2, Math.min(4, Math.floor(Math.min(CW, CH) / 130))), mm = cell * MS;
+  const cell = Math.max(2, Math.min(3, Math.floor(Math.min(CW, CH) / 140))), mm = cell * MS;
   const mx = CW / 2 - mm / 2, my = 34;
   c.fillStyle = "rgba(10,8,22,.78)"; c.fillRect(mx - 4, my - 4, mm + 8, mm + 8);
+  // Ground-level obstacles by height; cells covered only from above (roof, upper floor) get a faint tint
   for (let y = 0; y < MS; y++) for (let x = 0; x < MS; x++) {
-    const h = HM[y][x];
-    if (h <= 0) continue;
-    c.fillStyle = h >= WALLH ? "#8f88ad" : h >= 2 ? "#c9c2e0" : h >= 1 ? "#6a8a58" : "#8a6038";
+    const sp = SP[y][x];
+    if (!sp.length) continue;
+    const low = sp.find(s => s.b < .1), h = low ? low.t : 0;
+    c.fillStyle = !low ? "#35304f" : h >= 2.9 ? "#8f88ad" : h >= 2 ? "#c9c2e0" : h >= 1 ? "#6a8a58" : "#8a6038";
     c.fillRect(mx + x * cell, my + y * cell, cell, cell);
+    if (LAD[y][x]) { c.fillStyle = "#ffd23f"; c.fillRect(mx + x * cell, my + y * cell, cell, cell); }
   }
   c.fillStyle = "rgba(255,210,63,.25)"; c.beginPath();
   c.moveTo(mx + v.x * cell, my + v.y * cell);
@@ -1577,7 +1668,27 @@ function loop(t) {
   }
   requestAnimationFrame(loop);
 }
+/* In-game menu: online the match keeps going for everyone else; against bots it pauses */
+function toggleMenu() {
+  if (!$("pause").hidden) { $("pause").hidden = true; return; }
+  closeBuy(); inp.fire = false; inp.keys = {};
+  try { document.exitPointerLock && document.exitPointerLock(); } catch (e) {}
+  $("pauseNote").textContent = NET ? "La partida sigue para los demás mientras estás aquí. Si sales, te desconectas de la sala." : "La partida está en pausa.";
+  $("pause").hidden = false;
+}
+$("menuBtn").addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); toggleMenu(); });
+$("resume").onclick = () => { $("pause").hidden = true; };
+$("quit").onclick = () => {
+  $("pause").hidden = true;
+  if (NET) { leaveRoom(); return; }
+  running = false; G = { st: "idle" };
+  setPlaying(false);
+  makePlayer("h-solo");
+  $("end").hidden = true; $("start").hidden = false;
+  renderStart(); render();
+};
 function step(dt) {
+  if (!NET && !$("pause").hidden) return;
   kick = Math.max(0, kick - dt * 6); hurt = Math.max(0, hurt - dt * 2); hitMark = Math.max(0, hitMark - dt * 4);
   if (msgTimer > 0) { msgTimer -= dt; if (msgTimer <= 0) $("msg").innerHTML = ""; }
   if (amHost()) hostStep(dt);
@@ -1616,6 +1727,9 @@ function step(dt) {
     let s = inp.s + (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0);
     const len = Math.hypot(f, s);
     if (len > 1) { f /= len; s /= len; }
+    // Ladders: forward climbs, back goes down; backing away is ignored while hanging on one
+    P.ladderIn = live && ladderAt(P.x, P.y) ? (f > .2 ? 1 : f < -.2 ? -1 : 0) : 0;
+    if (P.onLadder && f < 0) f = 0;
     P.moving = live && len > .15 && !P.climb;
     if (P.moving) {
       const ca = Math.cos(P.a), sa = Math.sin(P.a), sp = 3.2 * dt * (P.w === 3 ? .85 : 1) * (P.cr ? .45 : 1) * (P.scoped ? .6 : 1);
@@ -1661,7 +1775,8 @@ function showEnd() {
 }
 
 function setPlaying(on) {
-  ["hudL", "hudC", "hudR", "buyBtn"].forEach(id => $(id).hidden = !on);
+  ["hudL", "hudC", "hudR", "buyBtn", "menuBtn"].forEach(id => $(id).hidden = !on);
+  if (!on) $("pause").hidden = true;
   ["touch", "fireBtn", "jumpBtn", "crouchBtn", "reloadBtn", "stickHint"].forEach(id => $(id).hidden = !(on && TOUCH));
   if (!on) { $("stick").hidden = true; $("scopeBtn").hidden = true; closeBuy(); $("msg").innerHTML = ""; inp.fire = false; inp.jumpHeld = false; inp.crouch = false; if (P) P.scoped = false; }
 }
@@ -1769,7 +1884,8 @@ addEventListener("keydown", e => {
   if (e.code === "KeyE" && !e.repeat) toggleScope();
   if (e.code === "KeyB") $("buy").hidden ? openBuy() : closeBuy();
   if (/^Digit[1-4]$/.test(e.code) && !$("buy").hidden) buyWeapon(+e.code.slice(5) - 1);
-  if (e.code === "Escape") closeBuy();
+  if (e.code === "Escape") { if (!$("buy").hidden) closeBuy(); else toggleMenu(); }
+  if (e.code === "KeyM") toggleMenu();
   if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ControlLeft"].includes(e.code)) e.preventDefault();
 });
 addEventListener("keyup", e => { inp.keys[e.code] = false; if (e.code === "Space") inp.jumpHeld = false; });
