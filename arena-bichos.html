@@ -81,7 +81,7 @@ input[type=text] { box-sizing: border-box; font: inherit; font-weight: 600; colo
 .round { width: 40px; height: 40px; border-radius: 10px; background: var(--panel-2); border: 2px solid var(--line); font-size: 20px; font-weight: 800; }
 .stepper output { font-family: var(--pix); font-size: 24px; min-width: 2ch; text-align: center; }
 #teams { font-size: 13px; color: var(--muted); }
-.seg { display: inline-flex; background: var(--panel-2); border: 2px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg { display: inline-flex; flex-wrap: wrap; justify-self: start; background: var(--panel-2); border: 2px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
 .seg button { background: transparent; padding: 7px 12px; border-radius: 7px; font-weight: 600; font-size: 14px; color: var(--muted); }
 .seg button.on { background: var(--gold); color: #241a00; }
 #teamSeg button[data-t="0"].on { background: var(--marea); color: #06223d; }
@@ -164,15 +164,16 @@ input[type=text] { box-sizing: border-box; font: inherit; font-weight: 600; colo
     <div class="card">
       <div>
         <h1>Arena de <span>Bichos</span></h1>
-        <p class="lede">Shooter por equipos en 3D. Salta sobre cajas, trepa muros bajos y sube a las torres. Marea contra Brasa: gana quien se lleve 5 rondas.</p>
+        <p class="lede">Shooter de lechones por equipos en 3D. Salta sobre cajas, trepa muros bajos y sube a las torres. Marea contra Brasa: gana quien se lleve 5 rondas.</p>
       </div>
       <div class="field">
         <label class="label" for="pname">Tu nombre</label>
         <input type="text" id="pname" maxlength="12" value="Jugador">
       </div>
       <div class="field">
-        <span class="label">Tu bicho</span>
+        <span class="label">Tu lechón</span>
         <div class="swatches" id="swatches"></div>
+        <div class="seg" id="acc" aria-label="Accesorio"></div>
       </div>
       <div class="online">
         <span class="label">En línea con amigos</span>
@@ -455,37 +456,53 @@ const los = (a, b) => rayFree(a.x, a.y, a.z + EYE, b.x, b.y, b.z + BODY_C);
 const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
 const turnTo = (a, want, max) => { const d = angDiff(want, a); return a + Math.max(-max, Math.min(max, d)); };
 
-/* Creature sprites: one shape, recolored per player, outline added in code */
-const BODY = [
-  "......aa......",
-  "......s.......",
-  "....bbbbbb....",
-  "...bhbbbbbbb..",
-  "..bhbbbbbbbbb.",
-  "..bbwwbbbwwbs.",
-  "..bbwkbbbwkbs.",
-  "..bbbbbbbbbbs.",
-  "..bbbbmmbbbbs.",
-  "..bbbbbbbbbss.",
-  "..sbbbbbbbbss.",
-  "...sbbbbbbss..",
-  "...ff....ff...",
-  "..fff....fff.."
-];
-const SS = 16;
+/* Piglet sprites: a standing pig in a shirt of the player's colour, plus an accessory; outline added in code */
+const ACC = ["Natural", "Lentes", "Sombrero", "Bandana", "Bandido"];
+const SS = 24;
 const hexRgb = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
 const mul = (c, f) => c.map(v => Math.max(0, Math.min(255, Math.round(v * f))));
-function buildSprite(hex) {
-  const base = hexRgb(hex);
-  const pal = { b: base, s: mul(base, .7), h: mul(base, 1.35), f: mul(base, .5), a: [255, 210, 63], w: [255, 255, 255], k: [27, 27, 36], m: [58, 16, 32] };
+function drawPig(x, hex, acc, back) {
+  const r = (c, X, Y, w = 1, h = 1) => { x.fillStyle = c; x.fillRect(X, Y, w, h); };
+  const C = hex, Cs = `rgb(${mul(hexRgb(hex), .72).join(",")})`;
+  const S = "#f4a3b5", D = "#d9819a", R = "#a85570", N = "#f9c4d0", O = "#7a2f45", E = "#1b1b24", W = "#ffffff", H = "#4a3030";
+  r(S, 8, 19, 3, 3); r(S, 13, 19, 3, 3); r(H, 8, 22, 3, 1); r(H, 13, 22, 3, 1);
+  r(C, 7, 13, 10, 6); r(Cs, back ? 7 : 15, 13, 2, 6); r("#5a3a24", 7, 18, 10, 1); if (!back) r("#ffd23f", 11, 18, 2, 1);
+  r(S, 5, 14, 2, 4); r(S, 17, 14, 2, 4); r(H, 5, 17, 2, 1); r(H, 17, 17, 2, 1); r(C, 5, 13, 2, 1); r(C, 17, 13, 2, 1);
+  r(S, 5, 2, 3, 3); r(S, 16, 2, 3, 3);
+  r(S, 5, 4, 14, 9);
+  [[5, 4], [18, 4], [5, 12], [18, 12]].forEach(([a, b]) => x.clearRect(a, b, 1, 1));
+  r(D, 6, 12, 12, 1);
+  if (!back) {
+    r(R, 6, 3, 1, 2); r(R, 17, 3, 1, 2);
+    r(E, 8, 7, 2, 2); r(W, 8, 7); r(E, 14, 7, 2, 2); r(W, 14, 7);
+    r(D, 6, 10, 2, 1); r(D, 16, 10, 2, 1);
+    r(N, 9, 9, 6, 3); r(D, 9, 11, 6, 1); r(O, 10, 10); r(O, 13, 10);
+  } else {
+    r(D, 6, 5, 12, 1);
+    r(S, 11, 16, 2, 1); r(S, 12, 15, 2, 1); r(S, 13, 14);
+  }
+  if (acc === 1) {
+    if (back) r(E, 5, 7, 14, 1);
+    else { r(E, 7, 7, 4, 2); r(E, 13, 7, 4, 2); r(E, 11, 7, 2, 1); r(E, 5, 7, 2, 1); r(E, 17, 7, 2, 1); r(W, 8, 7); r(W, 14, 7); }
+  }
+  if (acc === 3 || acc === 4) {
+    const B = hex === "#e2453c" || hex === "#f07ab4" || hex === "#f08a24" ? "#2f4a9a" : "#c83a32";
+    if (back) { r(B, 6, 9, 12, 2); r(B, 11, 11, 2, 2); r(B, 10, 13, 1, 2); r(B, 13, 13, 1, 2); }
+    else { r(B, 6, 9, 12, 3); r(B, 8, 12, 8, 1); r(B, 10, 13, 4, 1); r(B, 11, 14, 2, 1); r(W, 8, 10); r(W, 12, 9); r(W, 15, 11); r(W, 10, 12); }
+  }
+  if (acc === 2 || acc === 4) {
+    const br = "#8a5a2c", sh = "#6a4220";
+    r(br, 2, 4, 20, 2); r(sh, 2, 5, 20, 1); r(br, 1, 3, 2, 1); r(br, 21, 3, 2, 1);
+    r(br, 7, 1, 10, 3); r(sh, back ? 7 : 15, 1, 2, 3); r(sh, 11, 1, 2, 1); r("#3a2412", 7, 3, 10, 1);
+  }
+}
+function buildSprite(hex, acc) {
   const make = back => {
-    const g = [];
-    for (let j = 0; j < SS; j++) for (let i = 0; i < SS; i++) {
-      let ch = (BODY[j - 1] || "")[i - 1];
-      if (!ch || ch === ".") { g.push(null); continue; }
-      if (back && "wkm".includes(ch)) ch = j > 6 ? "s" : "b";
-      g.push(pal[ch]);
-    }
+    const cv = document.createElement("canvas"); cv.width = cv.height = SS;
+    const x = cv.getContext("2d");
+    drawPig(x, hex, acc, back);
+    const d = x.getImageData(0, 0, SS, SS).data, g = [];
+    for (let i = 0; i < SS * SS; i++) g.push(d[i * 4 + 3] > 0 ? [d[i * 4], d[i * 4 + 1], d[i * 4 + 2]] : null);
     const out = g.slice();
     for (let j = 0; j < SS; j++) for (let i = 0; i < SS; i++) {
       if (g[j * SS + i]) continue;
@@ -496,7 +513,7 @@ function buildSprite(hex) {
   return { front: make(false), back: make(true) };
 }
 const sprCache = {};
-const getSpr = hex => sprCache[hex] || (sprCache[hex] = buildSprite(hex));
+const getSpr = (hex, acc = 0) => sprCache[hex + acc] || (sprCache[hex + acc] = buildSprite(hex, acc));
 function paintSprite(canvas, spr) {
   canvas.width = SS; canvas.height = SS;
   const c = canvas.getContext("2d"), img = c.createImageData(SS, SS);
@@ -505,7 +522,7 @@ function paintSprite(canvas, spr) {
 }
 
 /* Settings */
-let cfg = { name: "Jugador", color: 0, count: 4, diff: 1, team: 0, total: 4 };
+let cfg = { name: "Jugador", color: 0, acc: 2, count: 4, diff: 1, team: 0, total: 4 };
 try { Object.assign(cfg, JSON.parse(localStorage.getItem("arena-bichos") || "{}")); } catch (e) {}
 const saveCfg = () => { try { localStorage.setItem("arena-bichos", JSON.stringify(cfg)); } catch (e) {} };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -517,16 +534,22 @@ function renderStart() {
   $("plus").disabled = cfg.count >= 8;
   const a = Math.ceil(cfg.count / 2), b = cfg.count - a;
   $("teams").textContent = `Marea ${a} contra Brasa ${b}`;
-  [...$("swatches").children].forEach((s, i) => s.classList.toggle("on", i === cfg.color));
+  [...$("swatches").children].forEach((s, i) => { s.classList.toggle("on", i === cfg.color); paintSprite(s.firstChild, getSpr(COLORS[i], cfg.acc).front); });
+  [...$("acc").children].forEach((s, i) => s.classList.toggle("on", i === cfg.acc));
   [...$("diff").children].forEach((s, i) => s.classList.toggle("on", i === cfg.diff));
 }
 COLORS.forEach((c, i) => {
   const b = document.createElement("button");
-  b.className = "sw"; b.setAttribute("aria-label", "Color " + (i + 1));
-  const cv = document.createElement("canvas"); b.appendChild(cv);
-  paintSprite(cv, getSpr(c).front);
+  b.className = "sw"; b.setAttribute("aria-label", "Camiseta " + (i + 1));
+  b.appendChild(document.createElement("canvas"));
   b.onclick = () => { cfg.color = i; renderStart(); };
   $("swatches").appendChild(b);
+});
+ACC.forEach((n, i) => {
+  const b = document.createElement("button");
+  b.textContent = n;
+  b.onclick = () => { cfg.acc = i; renderStart(); };
+  $("acc").appendChild(b);
 });
 $("minus").onclick = () => { cfg.count = Math.max(2, cfg.count - 1); renderStart(); };
 $("plus").onclick = () => { cfg.count = Math.min(8, cfg.count + 1); renderStart(); };
@@ -584,11 +607,11 @@ function mkEnt(o) {
     money: 800, kills: 0, deaths: 0, moving: false, path: null, tgt: null, react: 0, strafeT: 0, strafeDir: 1,
     lastSeen: null, aware: null, stuckT: 0, lx: 0, ly: 0, spotted: -9, sh: 0, kb: null, owner: null
   }, o);
-  e.hex = COLORS[e.ci]; e.spr = getSpr(e.hex);
+  e.hex = COLORS[e.ci]; e.ac = e.ac || 0; e.spr = getSpr(e.hex, e.ac);
   return e;
 }
 function makePlayer(key) {
-  P = mkEnt({ key, name: (cfg.name || "").trim().slice(0, 12) || "Jugador", ci: cfg.color, team: cfg.team ? 1 : 0, own: true, isPlayer: true });
+  P = mkEnt({ key, name: (cfg.name || "").trim().slice(0, 12) || "Jugador", ci: cfg.color, ac: cfg.acc, team: cfg.team ? 1 : 0, own: true, isPlayer: true });
   placeAtSpawn(P, 0);
   ents = [P];
 }
@@ -620,7 +643,7 @@ function hostStartMatch() {
     let ci = COLORS.findIndex((_, c) => !used.includes(c));
     if (ci < 0) ci = i % COLORS.length;
     used.push(ci);
-    ents.push(mkEnt({ key: "b" + i + "-" + (NET ? NET.me : "solo"), name: names[i % names.length], ci, team: t, own: true, isBot: true }));
+    ents.push(mkEnt({ key: "b" + i + "-" + (NET ? NET.me : "solo"), name: names[i % names.length], ci, ac: (Math.random() * ACC.length) | 0, team: t, own: true, isBot: true }));
   }
   if (!cnt[0] || !cnt[1]) { ents = ents.filter(e => !e.isBot); return false; }
   setPhase({ st: "freeze", r: 1, rid: Math.floor(Math.random() * 1e6), sc: [0, 0], t: 3, tl: ROUND_T, bl: 15, w: -1, why: "" });
@@ -834,7 +857,7 @@ function sendPresence() {
   const e = ents.filter(x => x.own).slice(0, 9).map(x => ({
     k: x.key, n: x.name, c: x.ci, t: x.team, x: +x.x.toFixed(2), y: +x.y.toFixed(2), z: +x.z.toFixed(2),
     a: +(((x.a % 6.2832) + 6.2832) % 6.2832).toFixed(2), h: Math.ceil(x.hp), al: x.alive ? 1 : 0,
-    w: x.w, mv: x.moving ? 1 : 0, sh: x.sh, kb: x.kb || ""
+    w: x.w, mv: x.moving ? 1 : 0, sh: x.sh, kb: x.kb || "", ac: x.ac
   }));
   const g = NET.isHost ? Object.assign({}, G, { t: +(+G.t || 0).toFixed(1), tl: +(+G.tl || 0).toFixed(1), bl: +(+G.bl || 0).toFixed(1) }) : null;
   NET.room.presence({ v: 2, hs: NET.isHost, e, s: NET.shots, g }).catch(() => {});
@@ -847,7 +870,8 @@ function sanEnt(o) {
   return {
     k, n: String(o.n || "?").slice(0, 12), c: num(o.c, 0, 7, 0) | 0, t: num(o.t, 0, 1, 0) | 0,
     x: num(o.x, 1, MS - 1, 2), y: num(o.y, 1, MS - 1, 2), z: num(o.z, 0, 4, 0), a: num(o.a, -10, 10, 0), h: num(o.h, 0, 100, 100),
-    al: o.al ? 1 : 0, w: num(o.w, 0, 3, 0) | 0, mv: o.mv ? 1 : 0, sh: num(o.sh, 0, 1e9, 0), kb: typeof o.kb === "string" ? o.kb.slice(0, 60) : ""
+    al: o.al ? 1 : 0, w: num(o.w, 0, 3, 0) | 0, mv: o.mv ? 1 : 0, sh: num(o.sh, 0, 1e9, 0), kb: typeof o.kb === "string" ? o.kb.slice(0, 60) : "",
+    ac: num(o.ac, 0, ACC.length - 1, 0) | 0
   };
 }
 function sanG(g) {
@@ -885,8 +909,8 @@ function processPeers(peers) {
       seen.add(d.k);
       let e = byKey(d.k);
       if (e && e.own) return;
-      if (!e) { e = mkEnt({ key: d.k, name: d.n, ci: d.c, team: d.t, x: d.x, y: d.y, z: d.z, a: d.a, alive: !!d.al, sh: d.sh, w: d.w, isBot: d.k[0] === "b" }); ents.push(e); }
-      if (e.ci !== d.c) { e.ci = d.c; e.hex = COLORS[d.c]; e.spr = getSpr(e.hex); }
+      if (!e) { e = mkEnt({ key: d.k, name: d.n, ci: d.c, ac: d.ac, team: d.t, x: d.x, y: d.y, z: d.z, a: d.a, alive: !!d.al, sh: d.sh, w: d.w, isBot: d.k[0] === "b" }); ents.push(e); }
+      if (e.ci !== d.c || e.ac !== d.ac) { e.ci = d.c; e.ac = d.ac; e.hex = COLORS[d.c]; e.spr = getSpr(e.hex, e.ac); }
       e.name = d.n; e.team = d.t; e.tx = d.x; e.ty = d.y; e.tz = d.z; e.ta = d.a; e.hp = d.h; e.w = d.w; e.moving = !!d.mv; e.owner = p.peer;
       if (e.alive && !d.al) remoteDeath(e, d.kb);
       if (!e.alive && d.al) { e.x = d.x; e.y = d.y; e.z = d.z; e.a = d.a; }
@@ -1205,11 +1229,12 @@ function buildWorld() {
   return { scene, skyMesh };
 }
 const spriteTex = {};
-function texFor(hex) {
-  if (spriteTex[hex]) return spriteTex[hex];
+function texFor(hex, acc) {
+  const key = hex + acc;
+  if (spriteTex[key]) return spriteTex[key];
   const mk = spr => { const c = document.createElement("canvas"); paintSprite(c, spr); const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t; };
-  const s = getSpr(hex);
-  return spriteTex[hex] = { front: mk(s.front), back: mk(s.back) };
+  const s = getSpr(hex, acc);
+  return spriteTex[key] = { front: mk(s.front), back: mk(s.back) };
 }
 function init3D() {
   if (!window.THREE) return null;
@@ -1247,15 +1272,15 @@ function render() {
   for (const e of ents) {
     let s = R3.sprites.get(e.key);
     if (!s) {
-      s = new THREE.Sprite(new THREE.SpriteMaterial({ map: texFor(e.hex).front, alphaTest: .5 }));
-      s.center.set(.5, 0); s.scale.set(.85, .85, 1);
+      s = new THREE.Sprite(new THREE.SpriteMaterial({ map: texFor(e.hex, e.ac).front, alphaTest: .5 }));
+      s.center.set(.5, 0); s.scale.set(.95, .95, 1);
       scene.add(s); R3.sprites.set(e.key, s);
     }
     live.add(e.key);
     s.visible = e.alive && e !== v;
     if (!s.visible) continue;
     const front = Math.cos(e.a) * (v.x - e.x) + Math.sin(e.a) * (v.y - e.y) > 0;
-    const t = texFor(e.hex), want = front ? t.front : t.back;
+    const t = texFor(e.hex, e.ac), want = front ? t.front : t.back;
     if (s.material.map !== want) { s.material.map = want; s.material.needsUpdate = true; }
     const bob = e.moving && e.onGround !== false ? Math.abs(Math.sin(now * 10 + e.x)) * .04 : 0;
     s.position.set(e.x, e.z + bob, e.y);
@@ -1286,8 +1311,12 @@ function drawGun() {
   }
   gctx.fillStyle = "#141220";
   gctx.fillRect(baseX - 13 * u, baseY - 22 * u, 26 * u, 30 * u);
-  gctx.fillStyle = P.hex;
+  gctx.fillStyle = "#f4a3b5";
   gctx.fillRect(baseX - 12 * u, baseY - 21 * u, 24 * u, 28 * u);
+  gctx.fillStyle = "#4a3030";
+  gctx.fillRect(baseX - 12 * u, baseY - 21 * u, 24 * u, 4 * u);
+  gctx.fillStyle = P.hex;
+  gctx.fillRect(baseX - 12 * u, baseY - 3 * u, 24 * u, 10 * u);
   gctx.fillStyle = "rgba(0,0,0,.25)";
   gctx.fillRect(baseX + 4 * u, baseY - 21 * u, 8 * u, 28 * u);
   if (kick > .55) {
