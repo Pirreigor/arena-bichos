@@ -1,0 +1,16 @@
+{
+  "name": "arena-bichos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shooter por equipos en 3D pixelado, con salas en línea sin cuentas.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "8.18.0"
+  }
+}
