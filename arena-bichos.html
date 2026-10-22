@@ -199,6 +199,10 @@ input[type=text] { box-sizing: border-box; font: inherit; font-weight: 600; colo
       <div class="online">
         <span class="label">Practicar contra bots</span>
         <div class="row">
+          <span class="label">Tu equipo</span>
+          <div class="seg" id="soloTeam"><button data-t="0">Marea · ataca</button><button data-t="1">Brasa · defiende</button></div>
+        </div>
+        <div class="row">
           <span id="teams"></span>
           <div class="stepper">
             <button class="round" id="minus" aria-label="Menos jugadores">−</button>
@@ -231,7 +235,7 @@ input[type=text] { box-sizing: border-box; font: inherit; font-weight: 600; colo
       <p class="lede">Tus amigos abren este mismo juego, escriben el código y tocan "Unirse".</p>
       <div class="row">
         <span class="label">Tu equipo</span>
-        <div class="seg" id="teamSeg"><button data-t="0">Marea</button><button data-t="1">Brasa</button></div>
+        <div class="seg" id="teamSeg"><button data-t="0">Marea · ataca</button><button data-t="1">Brasa · defiende</button></div>
       </div>
       <div class="field">
         <span class="label">Tu lechón <span id="charTaken" style="text-transform:none;letter-spacing:0;font-weight:400"></span></span>
@@ -676,6 +680,7 @@ function renderStart() {
   $("teams").textContent = `Marea ${a} contra Brasa ${b}`;
   [...$("chars").children].forEach((s, i) => s.classList.toggle("on", i === cfg.color));
   [...$("diff").children].forEach((s, i) => s.classList.toggle("on", i === cfg.diff));
+  [...$("soloTeam").children].forEach((s, i) => s.classList.toggle("on", i === (cfg.team ? 1 : 0)));
 }
 function charButtons(box, onPick) {
   CHARS.forEach((c, i) => {
@@ -693,6 +698,7 @@ charButtons($("chars"), i => { cfg.color = i; renderStart(); });
 $("minus").onclick = () => { cfg.count = Math.max(2, cfg.count - 1); renderStart(); };
 $("plus").onclick = () => { cfg.count = Math.min(8, cfg.count + 1); renderStart(); };
 $("diff").onclick = e => { const d = e.target.dataset.d; if (d != null) { cfg.diff = +d; renderStart(); } };
+$("soloTeam").onclick = e => { const t = e.target.dataset.t; if (t != null) { cfg.team = +t; saveCfg(); renderStart(); } };
 $("pname").oninput = e => { cfg.name = e.target.value; };
 
 /* Audio */
@@ -1787,7 +1793,6 @@ function goFullscreen() {
 function playSolo() {
   if (!R3) return;
   cfg.name = $("pname").value.slice(0, 12);
-  cfg.team = 0;
   saveCfg();
   initAudio();
   goFullscreen();
