@@ -54,6 +54,9 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 #jumpBtn { width: 66px; height: 66px; border-radius: 50%; padding: 0; font-size: 10px; right: calc(max(12px, env(safe-area-inset-right, 0px)) + 30px); bottom: calc(env(safe-area-inset-bottom, 0px) + 126px); }
 #jumpBtn.on, #crouchBtn.on, #scopeBtn.on { background: rgba(255,255,255,.35); }
 #crouchBtn { width: 60px; height: 60px; border-radius: 50%; padding: 0; font-size: 9px; right: calc(max(12px, env(safe-area-inset-right, 0px)) + 110px); bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); }
+#heBtn, #smokeBtn { width: 58px; height: 46px; border-radius: 12px; padding: 0; font-size: 10px; right: max(12px, env(safe-area-inset-right, 0px)); }
+#heBtn { top: 42%; background: rgba(140, 40, 30, .7); }
+#smokeBtn { top: calc(42% + 56px); background: rgba(90, 96, 110, .7); }
 #scopeBtn { width: 58px; height: 58px; border-radius: 50%; padding: 0; font-size: 11px; right: calc(max(12px, env(safe-area-inset-right, 0px)) + 34px); bottom: calc(env(safe-area-inset-bottom, 0px) + 204px); }
 #reloadBtn { width: 54px; height: 54px; border-radius: 50%; padding: 0; right: calc(max(12px, env(safe-area-inset-right, 0px)) + 116px); bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); }
 #stick { position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); background: rgba(255,255,255,.08); pointer-events: none; }
@@ -151,7 +154,8 @@ input[type=text] { box-sizing: border-box; font: inherit; font-weight: 600; colo
   </div>
   <div class="hud" id="hudR" hidden>
     <div class="small" id="wname">Pistola chispa</div>
-    <div class="big" id="ammo">12 / 36</div>
+    <div class="big" id="ammo">15 / 90</div>
+    <div class="small" id="gear"></div>
     <div id="feed"></div>
   </div>
   <button class="btn-hud" id="buyBtn" hidden>COMPRAR (B)</button>
@@ -160,6 +164,8 @@ input[type=text] { box-sizing: border-box; font: inherit; font-weight: 600; colo
   <button class="btn-hud" id="jumpBtn" hidden>SALTAR</button>
   <button class="btn-hud" id="crouchBtn" hidden>AGACHAR</button>
   <button class="btn-hud" id="scopeBtn" hidden>MIRA</button>
+  <button class="btn-hud" id="heBtn" hidden>BOMBA</button>
+  <button class="btn-hud" id="smokeBtn" hidden>HUMO</button>
   <button class="btn-hud" id="fireBtn" hidden>FUEGO</button>
   <div id="stick" hidden><div id="knob"></div></div>
   <div id="stickHint" hidden>MOVER</div>
@@ -219,8 +225,8 @@ input[type=text] { box-sizing: border-box; font: inherit; font-weight: 600; colo
         <button class="secondary" id="play">Jugar contra bots</button>
       </div>
       <div class="controls">
-        <div><b>Teléfono</b> (en horizontal)<br>Pulgar izquierdo: mover · Desliza a la derecha: apuntar<br>Botón rojo: disparar · Saltar: salta y trepa bordes<br>Agachar: te cubres y apuntas mejor · Mira: zoom del láser</div>
-        <div><b>Computadora</b><br>WASD: mover · Mouse: apuntar · Clic: disparar<br>Espacio: saltar y trepar · C: agacharse<br>Clic derecho o E: mira del láser · R: recargar · B: comprar · M: menú</div>
+        <div><b>Teléfono</b> (en horizontal)<br>Pulgar izquierdo: mover · Desliza a la derecha: apuntar<br>Botón rojo: disparar · Saltar: salta y trepa bordes<br>Agachar: te cubres y apuntas mejor · Mira: zoom del láser<br>Bomba y Humo: lanzan la granada hacia donde apuntas</div>
+        <div><b>Computadora</b><br>WASD: mover · Mouse: apuntar · Clic: disparar<br>Espacio: saltar y trepar · C: agacharse<br>Clic derecho o E: mira del láser · R: recargar · B: comprar<br>G: bomba explosiva · H: bomba de humo · M: menú</div>
       </div>
       <p class="note err" id="no3d" hidden>Este navegador no puede mostrar 3D. Prueba con Chrome o Safari actualizados.</p>
     </div>
@@ -562,6 +568,7 @@ function rayFree(ax, ay, az, bx, by, bz) {
 const eyeOf = e => e.cr ? EYE_CR : EYE;
 const bodyOf = e => e.cr ? BODY_C_CR : BODY_C;
 const los = (a, b) => rayFree(a.x, a.y, a.z + eyeOf(a), b.x, b.y, b.z + bodyOf(b));
+// Shots ignore smoke; seeing does not (see sees(), defined with the grenades)
 const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
 const turnTo = (a, want, max) => { const d = angDiff(want, a); return a + Math.max(-max, Math.min(max, d)); };
 
@@ -717,7 +724,14 @@ function sfx(kind, vol = 1, w = 0) {
   try {
     const t = AC.currentTime, g = AC.createGain();
     g.connect(AC.destination);
-    if (kind === "shot") {
+    if (kind === "boom" || kind === "smoke") {
+      const s = AC.createBufferSource(), f = AC.createBiquadFilter();
+      s.buffer = noiseBuf; f.type = "lowpass"; f.frequency.value = kind === "boom" ? 380 : 1200;
+      s.connect(f); f.connect(g); s.loop = true;
+      const len = kind === "boom" ? .8 : 1.2;
+      g.gain.setValueAtTime((kind === "boom" ? .7 : .18) * vol, t); g.gain.exponentialRampToValueAtTime(.001, t + len);
+      s.start(t); s.stop(t + len);
+    } else if (kind === "shot") {
       const s = AC.createBufferSource(), f = AC.createBiquadFilter();
       s.buffer = noiseBuf; f.type = "lowpass"; f.frequency.value = [2400, 900, 1600, 4000][w];
       s.connect(f); f.connect(g);
@@ -828,7 +842,7 @@ function hostStep(dt) {
 /* Every device: react to the host's phase changes */
 function syncPhase(prev, g) {
   const ps = prev ? prev.st : "idle";
-  if (g.st === "freeze" && (!prev || prev.rid !== g.rid)) respawnOwned(g);
+  if (g.st === "freeze" && (!prev || prev.rid !== g.rid)) { clearFx(); respawnOwned(g); }
   if (inMatch(g.st) && !inMatch(ps)) {
     $("lobby").hidden = true; $("end").hidden = true; $("start").hidden = true;
     setPlaying(true);
@@ -849,12 +863,15 @@ function respawnOwned(g) {
   ents.forEach(e => {
     if (!e.own) return;
     if (g.r === 1) { e.money = 800; e.w = 0; e.kills = 0; e.deaths = 0; e.alive = false; }
-    if (!e.alive) e.w = 0;
+    if (!e.alive) { e.w = 0; e.he = 0; e.smoke = 0; }
     const mates = order.filter(k => { const x = byKey(k); return x && x.team === e.team; });
     placeAtSpawn(e, Math.max(0, mates.indexOf(e.key)));
     e.alive = true; e.hp = 100; e.reload = 0; e.cool = 0; e.kb = null; e.cr = false; e.scoped = false;
     e.path = null; e.tgt = null; e.lastSeen = null; e.aware = null;
-    if (e.isBot) for (let i = 3; i > e.w; i--) if (WEAP[i].p <= e.money && Math.random() < .85) { e.money -= WEAP[i].p; e.w = i; break; }
+    if (e.isBot) {
+      for (let i = 3; i > e.w; i--) if (WEAP[i].p <= e.money && Math.random() < .85) { e.money -= WEAP[i].p; e.w = i; break; }
+      if (!e.he && e.money >= GEAR[0].p && Math.random() < .6) { e.money -= GEAR[0].p; e.he = 1; }
+    }
     e.mag = WEAP[e.w].mag; e.res = WEAP[e.w].res;
   });
 }
@@ -904,26 +921,99 @@ function hitEntity(src, t, dmg) {
     if (NET.shots.length > 12) NET.shots.shift();
   }
 }
-function damage(t, dmg, src) {
+function damage(t, dmg, src, how) {
   if (!t.alive) return;
   t.hp -= dmg;
   if (t.isPlayer) { hurt = 1; sfx("hurt", .6); try { navigator.vibrate && navigator.vibrate(25); } catch (e) {} }
   else t.aware = src;
   if (t.hp <= 0) {
-    t.hp = 0; t.alive = false; t.deaths++; t.kb = src.key; t.scoped = false; t.cr = false;
+    t.hp = 0; t.alive = false; t.deaths++; t.kb = src.key; t.scoped = false; t.cr = false; t.he = 0; t.smoke = 0;
     if (src.own) { src.kills++; src.money = Math.min(9000, src.money + 300); }
-    addFeed(src, t);
+    addFeed(src, t, how);
     if (t.isPlayer) { showMsg("Te eliminaron", "Sigues mirando a tu equipo hasta el final de la ronda", 3); closeBuy(); }
   }
 }
-function addFeed(src, t) {
+function addFeed(src, t, how) {
   const div = document.createElement("div");
   const col = e => e.team === 0 ? "var(--marea)" : "var(--brasa)";
-  div.innerHTML = `<span style="color:${col(src)}">${esc(src.name)}</span><span class="w">${WEAP[src.w].s}</span><span style="color:${col(t)}">${esc(t.name)}</span>`;
+  div.innerHTML = `<span style="color:${col(src)}">${esc(src.name)}</span><span class="w">${how || WEAP[src.w].s}</span><span style="color:${col(t)}">${esc(t.name)}</span>`;
   $("feed").prepend(div);
   while ($("feed").children.length > 4) $("feed").lastChild.remove();
   setTimeout(() => div.remove(), 5000);
 }
+
+/* Grenades: thrown with bounce physics. Every device simulates every grenade from its throw, and each device applies blast damage
+   only to the entities it owns. Smoke clouds block sight (bots, name tags, the minimap) but bullets still go through. */
+const GEAR = [
+  { k: "he", n: "Bomba explosiva", d: "Daño en área · lanza con G", p: 300 },
+  { k: "smoke", n: "Bomba de humo", d: "Tapa la vista 14 s · lanza con H", p: 300 }
+];
+const NADE = { speed: 11, fuseHe: 1.6, fuseSmoke: 1.4, blast: 3.6, blastDmg: 100, smokeR: 2.6, smokeT: 14 };
+let nades = [], smokes = [], booms = [];
+function throwNade(e, k) {
+  if (!e.alive || !(e[k] > 0) || e.climb) return;
+  e[k]--;
+  const cp = Math.cos(e.pitch || 0), dx = Math.cos(e.a) * cp, dy = Math.sin(e.a) * cp, dz = Math.sin(e.pitch || 0);
+  const n = {
+    id: Math.random().toString(36).slice(2, 10), k, f: e.key, team: e.team,
+    x: e.x + dx * .3, y: e.y + dy * .3, z: e.z + eyeOf(e) - .1,
+    vx: dx * NADE.speed, vy: dy * NADE.speed, vz: dz * NADE.speed + 2
+  };
+  spawnNade(n);
+  if (NET) { NET.grs.push({ i: n.id, k, f: n.f, t: n.team, x: +n.x.toFixed(2), y: +n.y.toFixed(2), z: +n.z.toFixed(2), vx: +n.vx.toFixed(2), vy: +n.vy.toFixed(2), vz: +n.vz.toFixed(2) }); if (NET.grs.length > 6) NET.grs.shift(); }
+  sfx("jump", e.isPlayer ? .6 : .25);
+}
+function spawnNade(n) { n.t = 0; nades.push(n); }
+function stepNades(dt) {
+  for (let s = 0; s < 2; s++) {
+    const h = dt / 2;
+    for (const n of nades) {
+      n.t += h;
+      n.vz -= GRAV * .8 * h;
+      const nx = n.x + n.vx * h, ny = n.y + n.vy * h, nz = n.z + n.vz * h;
+      if (solidAt(nx, n.y, n.z)) n.vx *= -.45; else n.x = nx;
+      if (solidAt(n.x, ny, n.z)) n.vy *= -.45; else n.y = ny;
+      if (nz < .06 || solidAt(n.x, n.y, nz)) {
+        if (n.vz < 0) { n.vz *= -.35; n.vx *= .7; n.vy *= .7; if (Math.abs(n.vz) < .6) n.vz = 0; } else n.vz *= -.3;
+        if (nz < .06) n.z = .06;
+      } else n.z = nz;
+    }
+  }
+  nades = nades.filter(n => {
+    if (n.k === "he" && n.t >= NADE.fuseHe) { explode(n); return false; }
+    if (n.k === "smoke" && n.t >= NADE.fuseSmoke) { smokes.push({ x: n.x, y: n.y, z: n.z, t: NADE.smokeT, age: 0 }); sfx("smoke", Math.max(.1, 1 - Math.hypot(n.x - P.x, n.y - P.y) / FAR)); return false; }
+    return true;
+  });
+  smokes.forEach(s => { s.t -= dt; s.age += dt; });
+  smokes = smokes.filter(s => s.t > 0);
+  booms.forEach(b => { b.t -= dt; });
+  booms = booms.filter(b => b.t > 0);
+}
+function explode(n) {
+  booms.push({ x: n.x, y: n.y, z: n.z, t: .45 });
+  const dist = Math.hypot(n.x - P.x, n.y - P.y, n.z - P.z);
+  sfx("boom", Math.max(.08, 1 - dist / FAR));
+  if (dist < NADE.blast * 1.6) kick = Math.max(kick, .8);
+  const src = byKey(n.f) || { key: n.f, name: "?", team: n.team, w: 0, own: false };
+  for (const e of ents) {
+    if (!e.own || !e.alive || e.team === n.team) continue;
+    const d = Math.hypot(e.x - n.x, e.y - n.y, e.z + bodyOf(e) - n.z);
+    if (d >= NADE.blast || !rayFree(n.x, n.y, n.z + .15, e.x, e.y, e.z + bodyOf(e))) continue;
+    damage(e, NADE.blastDmg * (1 - d / NADE.blast), src, "bomba");
+  }
+}
+// Does any thick smoke cloud cut the segment between two points?
+function smokeBlocks(ax, ay, az, bx, by, bz) {
+  for (const s of smokes) {
+    if (s.age < .8 || s.t < 1.2) continue;
+    const cz = s.z + 1, dx = bx - ax, dy = by - ay, dz = bz - az, len2 = dx * dx + dy * dy + dz * dz || 1;
+    const u = Math.max(0, Math.min(1, ((s.x - ax) * dx + (s.y - ay) * dy + (cz - az) * dz) / len2));
+    if (Math.hypot(ax + dx * u - s.x, ay + dy * u - s.y, az + dz * u - cz) < NADE.smokeR * .85) return true;
+  }
+  return false;
+}
+const sees = (a, b) => los(a, b) && !smokeBlocks(a.x, a.y, a.z + eyeOf(a), b.x, b.y, b.z + bodyOf(b));
+function clearFx() { nades = []; smokes = []; booms = []; }
 
 let msgTimer = 0;
 function showMsg(t, s, dur) {
@@ -950,7 +1040,7 @@ function botThink(b, dt) {
     const dx = e.x - b.x, dy = e.y - b.y, d = Math.hypot(dx, dy);
     if (d > FAR || d >= td) continue;
     if (Math.abs(angDiff(Math.atan2(dy, dx), b.a)) > 1.25 && b.aware !== e) continue;
-    if (los(b, e)) { tgt = e; td = d; }
+    if (b.aware === e ? los(b, e) : sees(b, e)) { tgt = e; td = d; }
   }
   b.aware = null;
   if (tgt) {
@@ -958,6 +1048,13 @@ function botThink(b, dt) {
       b.tgt = tgt; b.react = D.react * (.7 + Math.random() * .6);
       b.cr = b.onGround && (b.w >= 2 || td > 8) && Math.random() < .6;
       b.scoped = b.w === 3;
+      b.nadeAt = b.he > 0 && td > 5 && td < 16 && Math.random() < .35 ? now + .5 : 0;
+    }
+    if (b.nadeAt && now >= b.nadeAt) {
+      // Lob the grenade: aim at the target with a little extra height for longer throws
+      b.a = Math.atan2(tgt.y - b.y, tgt.x - b.x); b.pitch = Math.min(.7, .12 + td * .025);
+      throwNade(b, "he"); b.nadeAt = 0;
+      return;
     }
     b.lastSeen = { x: tgt.x, y: tgt.y, z: tgt.z };
     b.path = null; b.ladderIn = 0;
@@ -1018,7 +1115,7 @@ function sendPresence() {
     w: x.w, mv: x.moving ? 1 : 0, sh: x.sh, kb: x.kb || "", cr: x.cr ? 1 : 0
   }));
   const g = NET.isHost ? Object.assign({}, G, { t: +(+G.t || 0).toFixed(1), tl: +(+G.tl || 0).toFixed(1), bl: +(+G.bl || 0).toFixed(1) }) : null;
-  NET.room.presence({ v: 2, hs: NET.isHost, e, s: NET.shots, g }).catch(() => {});
+  NET.room.presence({ v: 2, hs: NET.isHost, e, s: NET.shots, gr: NET.grs, g }).catch(() => {});
 }
 function sanEnt(o) {
   if (!o || typeof o !== "object") return null;
@@ -1031,6 +1128,14 @@ function sanEnt(o) {
     al: o.al ? 1 : 0, w: num(o.w, 0, 3, 0) | 0, mv: o.mv ? 1 : 0, sh: num(o.sh, 0, 1e9, 0), kb: typeof o.kb === "string" ? o.kb.slice(0, 60) : "",
     cr: o.cr ? 1 : 0
   };
+}
+function sanNade(o) {
+  if (!o || typeof o !== "object" || (o.k !== "he" && o.k !== "smoke")) return null;
+  const n = (v, lo, hi) => { v = +v; return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : null; };
+  const v = [n(o.x, 0, MS), n(o.y, 0, MS), n(o.z, 0, 9), n(o.vx, -20, 20), n(o.vy, -20, 20), n(o.vz, -20, 20)];
+  if (v.some(a => a == null)) return null;
+  const [x, y, z, vx, vy, vz] = v;
+  return { id: String(o.i).slice(0, 12), k: o.k, f: String(o.f || "").slice(0, 60), team: o.t === 1 ? 1 : 0, x, y, z, vx, vy, vz };
 }
 function sanG(g) {
   if (!g || typeof g !== "object" || !["lobby", "freeze", "live", "post", "over"].includes(g.st)) return null;
@@ -1091,6 +1196,10 @@ function processPeers(peers) {
       });
       NET.seen[p.peer] = Math.max(last, top);
     }
+    // Grenades this peer threw: simulate each one once (ones already in flight when we joined are skipped)
+    const grs = Array.isArray(pr.gr) ? pr.gr.slice(-6) : [];
+    if (!(p.peer in NET.seenGr)) NET.seenGr[p.peer] = new Set(grs.map(g => String(g && g.i).slice(0, 12)));
+    else grs.forEach(raw => { const n = sanNade(raw); if (n && !NET.seenGr[p.peer].has(n.id)) { NET.seenGr[p.peer].add(n.id); spawnNade(n); } });
     if (isH && !NET.isHost && pr.g) applyHostG(pr.g);
   }
   ents = ents.filter(e => e.own || seen.has(e.key));
@@ -1202,7 +1311,7 @@ async function joinRoom(code, create) {
   }
   buildMap();
   makePlayer("h-local");
-  NET = { room, code, me: null, isHost: create, hostPeer: null, seen: {}, shots: [], seq: 0, sendT: 0, noHostSince: 0, sawLobby: create, teamPicked: create, conn: false, unsub: [] };
+  NET = { room, code, me: null, isHost: create, hostPeer: null, seen: {}, shots: [], seq: 0, grs: [], seenGr: {}, sendT: 0, noHostSince: 0, sawLobby: create, teamPicked: create, conn: false, unsub: [] };
   G = create ? { st: "lobby" } : { st: "idle" };
   NET.unsub.push(room.onPeers(ch => processPeers(ch.peers), () => netLost()));
   NET.unsub.push(room.onConnection(c => { if (NET) NET.conn = c; }, () => netLost()));
@@ -1452,6 +1561,51 @@ function ensureWorld() {
   if (R3.world) { R3.world.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); }); R3.sprites.clear(); }
   R3.world = buildWorld();
 }
+/* Grenade, blast and smoke sprites, kept in pools and reused every frame */
+let fxTex = null;
+const fxPool = { nade: [], flash: [], puff: [] };
+function makeFxTex() {
+  const mk = (n, draw) => {
+    const c = document.createElement("canvas"); c.width = c.height = n; draw(c.getContext("2d"), n);
+    const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+    return t;
+  };
+  const radial = (stops) => (x, n) => { const g = x.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2); stops.forEach(([o, c]) => g.addColorStop(o, c)); x.fillStyle = g; x.fillRect(0, 0, n, n); };
+  return {
+    nade: mk(8, x => { x.fillStyle = "#1b1b24"; x.fillRect(2, 1, 4, 6); x.fillRect(1, 2, 6, 4); x.fillStyle = "#4f7a3a"; x.fillRect(2, 2, 4, 4); x.fillStyle = "#ffd23f"; x.fillRect(3, 0, 2, 1); }),
+    flash: mk(16, radial([[0, "#fff6c0"], [.35, "#ffb02e"], [.7, "rgba(226,69,60,.8)"], [1, "rgba(226,69,60,0)"]])),
+    puff: mk(16, radial([[0, "rgba(220,220,228,1)"], [.65, "rgba(196,196,206,.95)"], [1, "rgba(196,196,206,0)"]]))
+  };
+}
+function poolGet(kind, i, scene) {
+  const pool = fxPool[kind];
+  if (!pool[i]) {
+    const m = kind === "nade" ? new THREE.SpriteMaterial({ map: fxTex.nade, alphaTest: .5 }) : new THREE.SpriteMaterial({ map: fxTex[kind], transparent: true, depthWrite: false });
+    pool[i] = new THREE.Sprite(m); scene.add(pool[i]);
+  }
+  pool[i].visible = true;
+  return pool[i];
+}
+function renderFx(scene) {
+  if (!fxTex) fxTex = makeFxTex();
+  const used = { nade: 0, flash: 0, puff: 0 };
+  for (const n of nades) { const s = poolGet("nade", used.nade++, scene); s.position.set(n.x, n.z, n.y); s.scale.set(.2, .2, 1); }
+  for (const b of booms) {
+    const s = poolGet("flash", used.flash++, scene), k = 1 - b.t / .45;
+    s.position.set(b.x, b.z + .3, b.y); s.scale.setScalar(1.2 + k * 4.5); s.material.opacity = 1 - k * .9;
+  }
+  for (const sm of smokes) {
+    const a = Math.min(1, sm.age / .8) * Math.min(1, sm.t / 2), grow = Math.min(1, sm.age / .6);
+    for (let j = 0; j < 28; j++) {
+      const s = poolGet("puff", used.puff++, scene), ang = j * 2.399, rad = (j % 7) / 7 * 2.1 * grow, h = ((j * 37) % 10) / 10 * 2.2 * grow;
+      s.position.set(sm.x + Math.cos(ang) * rad, Math.max(.3, sm.z) + .2 + h, sm.y + Math.sin(ang) * rad);
+      s.scale.setScalar((1.7 + (j % 3) * .45) * (.4 + .6 * grow) + Math.sin(now * .8 + j) * .1);
+      s.material.opacity = .94 * a;
+    }
+  }
+  Object.keys(fxPool).forEach(k => { for (let i = used[k]; i < fxPool[k].length; i++) fxPool[k][i].visible = false; });
+}
+
 const viewer = () => P.alive ? P : (ents.find(e => e.alive && e.team === P.team) || ents.find(e => e.alive) || P);
 function render() {
   if (!R3 || !R3.world) return;
@@ -1481,6 +1635,7 @@ function render() {
     s.position.set(e.x, e.z + bob, e.y);
   }
   for (const [k, s] of R3.sprites) if (!live.has(k)) { scene.remove(s); s.material.dispose(); R3.sprites.delete(k); }
+  renderFx(scene);
   R3.renderer.render(scene, cam);
   gctx.clearRect(0, 0, W, H);
   if (P.alive && v === P && inMatch(G.st) && !P.scoped) drawGun();
@@ -1534,7 +1689,7 @@ function drawUI(v) {
     if (d > FAR) continue;
     v3.set(e.x, e.z + (e.cr ? .72 : .98), e.y).project(R3.camera);
     if (v3.z > 1 || v3.x < -1.1 || v3.x > 1.1 || v3.y < -1.1 || v3.y > 1.1) continue;
-    if (!rayFree(v.x, v.y, v.z + eyeOf(v), e.x, e.y, e.z + bodyOf(e) + .15)) continue;
+    if (!rayFree(v.x, v.y, v.z + eyeOf(v), e.x, e.y, e.z + bodyOf(e) + .15) || smokeBlocks(v.x, v.y, v.z + eyeOf(v), e.x, e.y, e.z + bodyOf(e) + .15)) continue;
     if (v === P && e.team !== P.team) e.spotted = now;
     const fs = Math.max(11, Math.min(15, 20 - d / 2));
     c.font = `600 ${fs}px Rubik, system-ui, sans-serif`;
@@ -1621,6 +1776,7 @@ function updateHud() {
   $("money").textContent = "$" + P.money;
   $("wname").textContent = P.reload > 0 ? "Recargando…" : w.n;
   $("ammo").textContent = P.mag + " / " + P.res;
+  $("gear").textContent = [P.he > 0 ? "BOMBA (G)" : "", P.smoke > 0 ? "HUMO (H)" : ""].filter(Boolean).join(" · ");
   const sc = G.sc || [0, 0];
   $("sA").textContent = sc[0]; $("sB").textContent = sc[1];
   const t = Math.max(0, G.st === "freeze" ? G.t : G.tl || 0);
@@ -1643,6 +1799,21 @@ function renderShop() {
     b.onclick = () => buyWeapon(i);
     $("shop").appendChild(b);
   });
+  GEAR.forEach((g, i) => {
+    const b = document.createElement("button");
+    const own = P[g.k] > 0, can = P.money >= g.p;
+    b.className = "wp" + (own ? " own" : "") + (!own && !can ? " no" : "");
+    b.innerHTML = `<span class="key">${WEAP.length + i + 1}</span><span class="n">${g.n}</span><span class="d">${g.d}</span><span class="p">${own ? "Lista" : "$" + g.p}</span>`;
+    b.onclick = () => buyGear(i);
+    $("shop").appendChild(b);
+  });
+}
+function buyGear(i) {
+  const g = GEAR[i];
+  if (P[g.k] > 0 || P.money < g.p || !buyOpen()) return;
+  P.money -= g.p; P[g.k] = 1;
+  sfx("buy");
+  renderShop();
 }
 function buyWeapon(i) {
   const w = WEAP[i];
@@ -1716,8 +1887,13 @@ function step(dt) {
       if (e.reload <= 0) { const w = WEAP[e.w], take = Math.min(w.mag - e.mag, e.res); e.mag += take; e.res -= take; e.reload = 0; }
     }
   }
+  if (inMatch(G.st)) stepNades(dt);
   const live = G.st === "live";
   P.moving = false;
+  if (live && inp.throwK) throwNade(P, inp.throwK);
+  inp.throwK = null;
+  $("heBtn").hidden = !(TOUCH && P.alive && P.he > 0 && inMatch(G.st));
+  $("smokeBtn").hidden = !(TOUCH && P.alive && P.smoke > 0 && inMatch(G.st));
   if (P.alive && inMatch(G.st)) {
     P.a += inp.turn * lookSens();
     P.pitch = Math.max(-1.2, Math.min(1.2, P.pitch + inp.pitch * lookSens()));
@@ -1751,7 +1927,7 @@ function step(dt) {
         const d = Math.hypot(e.x - P.x, e.y - P.y);
         if (d > 18) continue;
         const ad = angDiff(Math.atan2(e.y - P.y, e.x - P.x), P.a);
-        if (Math.abs(ad) < bd && los(P, e)) { bd = Math.abs(ad); best = { ad, pt: Math.atan2(e.z + bodyOf(e) - (P.z + eyeOf(P)), d) }; }
+        if (Math.abs(ad) < bd && sees(P, e)) { bd = Math.abs(ad); best = { ad, pt: Math.atan2(e.z + bodyOf(e) - (P.z + eyeOf(P)), d) }; }
       }
       if (best) {
         P.a += Math.max(-.9 * dt, Math.min(.9 * dt, best.ad));
@@ -1784,7 +1960,7 @@ function setPlaying(on) {
   ["hudL", "hudC", "hudR", "buyBtn", "menuBtn"].forEach(id => $(id).hidden = !on);
   if (!on) $("pause").hidden = true;
   ["touch", "fireBtn", "jumpBtn", "crouchBtn", "reloadBtn", "stickHint"].forEach(id => $(id).hidden = !(on && TOUCH));
-  if (!on) { $("stick").hidden = true; $("scopeBtn").hidden = true; closeBuy(); $("msg").innerHTML = ""; inp.fire = false; inp.jumpHeld = false; inp.crouch = false; if (P) P.scoped = false; }
+  if (!on) { $("stick").hidden = true; $("scopeBtn").hidden = true; $("heBtn").hidden = true; $("smokeBtn").hidden = true; closeBuy(); $("msg").innerHTML = ""; inp.fire = false; inp.jumpHeld = false; inp.crouch = false; if (P) P.scoped = false; }
 }
 function goFullscreen() {
   if (TOUCH) { try { const r = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); r && r.catch && r.catch(() => {}); } catch (e) {} }
@@ -1877,6 +2053,8 @@ jumpB.addEventListener("pointerup", jumpUp);
 jumpB.addEventListener("pointercancel", jumpUp);
 jumpB.addEventListener("pointerleave", jumpUp);
 $("reloadBtn").addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); if (P && P.alive) startReload(P); });
+$("heBtn").addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); inp.throwK = "he"; });
+$("smokeBtn").addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); inp.throwK = "smoke"; });
 $("crouchBtn").addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); inp.crouch = !inp.crouch; });
 $("scopeBtn").addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); toggleScope(); });
 
@@ -1889,6 +2067,9 @@ addEventListener("keydown", e => {
   if (e.code === "KeyE" && !e.repeat) toggleScope();
   if (e.code === "KeyB") $("buy").hidden ? openBuy() : closeBuy();
   if (/^Digit[1-4]$/.test(e.code) && !$("buy").hidden) buyWeapon(+e.code.slice(5) - 1);
+  if (/^Digit[5-6]$/.test(e.code) && !$("buy").hidden) buyGear(+e.code.slice(5) - 5);
+  if (e.code === "KeyG" && !e.repeat) inp.throwK = "he";
+  if (e.code === "KeyH" && !e.repeat) inp.throwK = "smoke";
   if (e.code === "Escape") { if (!$("buy").hidden) closeBuy(); else toggleMenu(); }
   if (e.code === "KeyM") toggleMenu();
   if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ControlLeft"].includes(e.code)) e.preventDefault();
